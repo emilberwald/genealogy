@@ -1,144 +1,4 @@
-import re
-import datetime
-import uuid
-from typing import Tuple, List, Union, Optional, Callable
-from enum import Enum
-import warnings
-import inspect
-import os
-
-
-class Meta(type):
-    @classmethod
-    def __prepare__(metaclass, name, bases, **kwds):
-        """
-            __prepare__
-            :param metaclass:   classdef keyword argument 'metaclass'
-            :param name:        classdef name
-            :param bases:       classdef positional arguments
-            :param **kwds:      classdef keyword arguments (sans 'metaclass')
-                                NOTE: same as in classdef, passed by value
-            :return:            namespace
-        """
-        return super().__prepare__(metaclass, name, bases, **kwds)
-
-    @staticmethod
-    def __new__(metaclass, name, bases, namespace, **kwds):
-        """
-            __new__
-            :param metaclass:   classdef keyword argument 'metaclass'
-            :param name:        classdef name
-            :param bases:       classdef positional arguments
-            :param namespace:   namespace
-                                NOTE:
-                                if '__classcell__' is present, it must be included in the call to super().
-            :param **kwds:      classdef keyword arguments (sans 'metaclass')
-                                NOTE: same as in classdef, passed by value
-            :return:            <class 'name'>
-        """
-        return super().__new__(metaclass, name, bases, namespace)
-
-    def __init__(classname, name, bases, namespace, **kwds):
-        """
-            __init__
-            :param classname:       <class 'name'>
-            :param name:            classdef name
-            :param bases:           classdef positional arguments
-            :param namespace:       namespace
-            :param **kwds:          classdef keyword arguments (sans 'metaclass')
-                                    NOTE: same as in classdef, passed by value
-            :return:                None
-            NOTE:
-            must call: super().__init__([args...]).
-        """
-        for key, value in kwds.items():
-            if not hasattr(classname, key):
-                setattr(classname, key, value)
-            else:
-                warnings.warn(f"Could not enter {key}:{value} into class dictionary", Warning)
-        super().__init__(name, bases, namespace, **kwds)
-
-    def __call__(classname, *args, **kwargs):
-        """
-            __call__
-            :param classname:   <class 'name'>
-            :param *args:       class call positional arguments (instantiation of <class 'name'>)
-            :param **kwargs:    class call keyword arguments (instantiation of <class 'name'>)
-            :return:            <name object at 0x...>
-            NOTE:
-            <class 'name'>(*ARGS, **KWARGS)
-                __call__(<class 'name'>, *args, **kwargs)
-                    <class 'name'>:         __init__(<name object at 0x...>, *args, **kwargs) -> None
-                    <class 'name'> bases:   __init__(<name object at 0x...>, [args...]) -> None
-            -> <name object at 0x...>
-        """
-        return super().__call__(*args, **kwargs)
-
-
-class XREF_ID:
-    def __init__(self, identifier=None):
-        if isinstance(identifier, uuid.UUID):
-            self.id = str(identifier).replace("-", "")[0:20]
-        elif identifier is not None:
-            self.id = str(identifier)[0:20]
-        else:
-            self.id = str(uuid.uuid1()).replace("-", "")[0:20]
-
-    def __str__(self):
-        return f"@{self.id}@"
-
-
-class GEDCOM_SYNTAX:
-    digit = f"[\u0030-\u0039]"
-    alpha = f"[\u0041-\u005A|\u0061-\u007A]"
-    alphanum = f"[{alpha}|{digit}]"
-    non_zero_digit = f"[\u0031-\u0039]"
-    level = f"[{digit}|{non_zero_digit}{digit}]"
-    tag = f"[\u005F|{alphanum}]+"
-    identifier_string = f"{alphanum}+"
-    at = "\u0040"
-    xref_ID = f"{at}{identifier_string}{at}"
-    pointer = f"{xref_ID}"
-    escape_text = f"[{alphanum}|\u0020]+"
-    escape = f"\u0040\u0023{escape_text}\u0040"
-    delim = f"\u0020"
-    line_char = f"[^\u0000-\u0008\u000A-\u001F\u00FF]"
-    line_text = f"{line_char}+"
-    line_item = f"[{escape}|{line_text}|{escape}{delim}{line_text}]"
-    line_value = f"[{pointer}|{line_item}]"
-    carriage_return = "\u000D"
-    line_feed = "\u000A"
-    terminator = f"[{carriage_return}|{line_feed}|{carriage_return}{line_feed}]"
-    null = f""
-
-
-class GEDCOM_LINE:
-    def __init__(
-        self, *, level: int, tag: str, xref_id: XREF_ID = None, line_value: str = None,
-    ):
-        self.level = level
-        self.xref_id = xref_id
-        self.tag = tag
-        self.line_value = line_value
-
-    def __str__(self):
-        return (
-            " ".join([str(val) for val in [self.level, self.xref_id, self.tag, self.line_value] if val is not None])
-            + "\n"
-        )
-
-
-class Primitive:
-    def __init__(self, *args, **kwargs):
-        self.value = str()
-        for arg in args:
-            self.value += str(arg)
-        for kwarg in kwargs:
-            self.value += str(kwarg)
-
-    def __str__(self):
-        print(f"<Primitive:{self.value}")
-        return self.value
+from ..common import XREF_ID, Meta, Primitive, Tag, Pointer, Substructure, get_gedcom_date
 
 
 class ADDRESS_CITY(Primitive, metaclass=Meta, Size=(1, 60)):
@@ -193,9 +53,7 @@ class ATTRIBUTE_DESCRIPTOR(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class ATTRIBUTE_TYPE(
-    Primitive, metaclass=Meta, Size=(None, None),
-):
+class ATTRIBUTE_TYPE(Primitive, metaclass=Meta, Size=(4, 4)):
     pass
 
 
@@ -235,9 +93,35 @@ class COUNT_OF_CHILDREN(Primitive, metaclass=Meta, Size=(1, 3)):
     pass
 
 
-class DATE_EXACT(
-    Primitive, metaclass=Meta, Size=(10, 11),
-):
+class DATE_APPROXIMATED(Primitive, metaclass=Meta, Size=(8, 39)):
+    pass
+
+
+class DATE_CALENDAR_ESCAPE(Primitive, metaclass=Meta, Size=(4, 15)):
+    pass
+
+
+class DATE_CALENDAR(Primitive, metaclass=Meta, Size=(4, 35)):
+    pass
+
+
+class DATE_EXACT(Primitive, metaclass=Meta, Size=(10, 11)):
+    pass
+
+
+class DATE_FREN(Primitive, metaclass=Meta, Size=(4, 35)):
+    pass
+
+
+class DATE_GREG(Primitive, metaclass=Meta, Size=(4, 35)):
+    pass
+
+
+class DATE_HEBR(Primitive, metaclass=Meta, Size=(4, 35)):
+    pass
+
+
+class DATE_JULN(Primitive, metaclass=Meta, Size=(4, 35)):
     pass
 
 
@@ -245,317 +129,365 @@ class DATE_PERIOD(Primitive, metaclass=Meta, Size=(7, 35)):
     pass
 
 
-def get_month(date: datetime.datetime):
-    return [None, "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][date.month]
+class DATE_PHRASE(Primitive, metaclass=Meta, Size=(1, 35)):
+    pass
 
 
-def try_strptime(date_phrase: str):
-    date_phrase = date_phrase.strip().rstrip(".xX-")
-    for fmt in [r"%Y-%m-%d", r"%Y-%m", r"%Y"]:
-        try:
-            return datetime.datetime.strptime(date_phrase, fmt)
-        except Exception as _:
-            pass
-    return None
-
-
-def get_gedcom_date(date_phrase: str):
-    interpreted_date = try_strptime(date_phrase)
-    if interpreted_date:
-        return " ".join(
-            [
-                "INT",
-                str(interpreted_date.day),
-                get_month(interpreted_date),
-                str(interpreted_date.year),
-                "".join(["(", date_phrase, ")"]),
-            ]
-        )
-    else:
-        return "".join(["(", date_phrase, ")"])
+class DATE_RANGE(Primitive, metaclass=Meta, Size=(8, 35)):
+    pass
 
 
 class DATE_VALUE(Primitive, metaclass=Meta, Size=(1, 35)):
-    def __init__(self, date: str):
-        self.date = get_gedcom_date(date)
+    @staticmethod
+    def date(date_phrase: str):
+        return get_gedcom_date(date_phrase)
 
-    def __str__(self):
-        return self.date
 
+class DATE(Primitive, metaclass=Meta, Size=(4, 35)):
+    pass
+
+
+class DAY(Primitive, metaclass=Meta, Size=(1, 2)):
+    pass
+
+
+class DESCRIPTIVE_TITLE(Primitive, metaclass=Meta, Size=(1, 248)):
+    pass
+
+
+class DIGIT(Primitive, metaclass=Meta, Size=(1, 1)):
+    pass
+
+
+class DUAL_STYLE_YEAR(Primitive, metaclass=Meta, Size=(3, 7)):
+    pass
+
+
+class ENTRY_RECORDING_DATE(Primitive, metaclass=Meta, Size=(1, 90)):
+    pass
+
+
+class EVENT_ATTRIBUTE_TYPE(Primitive, metaclass=Meta, Size=(1, 15)):
+    pass
+
+
+class EVENT_DESCRIPTOR(Primitive, metaclass=Meta, Size=(1, 90)):
+    pass
+
+
+class EVENT_OR_FACT_CLASSIFICATION(Primitive, metaclass=Meta, Size=(1, 90)):
+    pass
+
+
+class EVENT_TYPE_CITED_FROM(Primitive, metaclass=Meta, Size=(1, 15)):
+    pass
+
+
+class EVENT_TYPE_FAMILY(Primitive, metaclass=Meta, Size=(3, 4)):
+    pass
+
+
+class EVENT_TYPE_INDIVIDUAL(Primitive, metaclass=Meta, Size=(3, 4)):
+    pass
+
+
+class EVENTS_RECORDED(Primitive, metaclass=Meta, Size=(1, 90)):
+    pass
+
+
+class FILE_CREATION_DATE(Primitive, metaclass=Meta, Size=(10, 11)):
+    pass
+
+
+class FORM_RECORDS(Primitive, metaclass=Meta, Size=(1, 1)):
+    pass
+
+
+class GEDCOM_CONTENT_DESCRIPTION(Primitive, metaclass=Meta, Size=(1, 248)):
+    pass
+
+
+class GEDCOM_FILE_NAME(Primitive, metaclass=Meta, Size=(5, 248)):
+    pass
+
+
+class GEDCOM_FORM(Primitive, metaclass=Meta, Size=(14, 20)):  # Size=(1,20)
+    pass
+
 
-class DESCRIPTIVE_TITLE(Primitive, metaclass=Meta, Size=(None, None)):
+class GEDCOM_VERSION_NUMBER(Primitive, metaclass=Meta, Size=(3, 11)):
     pass
 
 
-class ENTRY_RECORDING_DATE(Primitive, metaclass=Meta, Size=(None, None)):
+class ID_NUMBER(Primitive, metaclass=Meta, Size=(1, 30)):
     pass
 
 
-class EVENT_DESCRIPTOR(Primitive, metaclass=Meta, Size=(None, None)):
+class LANGUAGE_ID(Primitive, metaclass=Meta, Size=(1, 15)):
     pass
 
 
-class EVENT_OR_FACT_CLASSIFICATION(Primitive, metaclass=Meta, Size=(None, None)):
+class LANGUAGE_OF_TEXT(Primitive, metaclass=Meta, Size=(1, 15)):
     pass
 
 
-class EVENT_TYPE_CITED_FROM(Primitive, metaclass=Meta, Size=(None, None)):
+class MONTH_FREN(Primitive, metaclass=Meta, Size=4):
     pass
 
 
-class EVENTS_RECORDED(Primitive, metaclass=Meta, Size=(None, None)):
+class MONTH_HEBR(Primitive, metaclass=Meta, Size=3):
     pass
 
 
-class FILE_CREATION_DATE(Primitive, metaclass=Meta, Size=(None, None)):
+class MONTH(Primitive, metaclass=Meta, Size=3):
     pass
 
 
-class GEDCOM_CONTENT_DESCRIPTION(Primitive, metaclass=Meta, Size=(None, None)):
+class MULTIMEDIA_FILE_REFERENCE(Primitive, metaclass=Meta, Size=(1, 259)):
     pass
 
 
-class GEDCOM_FILE_NAME(Primitive, metaclass=Meta, Size=(None, None)):
+class MULTIMEDIA_FORMAT(Primitive, metaclass=Meta, Size=(3, 4)):
     pass
 
 
-class GEDCOM_FORM(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_OF_BUSINESS(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class GEDCOM_VERSION_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_OF_PRODUCT(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class ID_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_OF_REPOSITORY(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class LANGUAGE_OF_TEXT(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_OF_SOURCE_DATA(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class MULTIMEDIA_FILE_REFERENCE(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PERSONAL(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class MULTIMEDIA_FORMAT(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PHONETIC(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_OF_BUSINESS(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_GIVEN(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_OF_PRODUCT(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_NICKNAME(Primitive, metaclass=Meta, Size=(1, 30)):
     pass
 
 
-class NAME_OF_REPOSITORY(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_PREFIX(Primitive, metaclass=Meta, Size=(1, 30)):
     pass
 
 
-class NAME_OF_SOURCE_DATA(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_SUFFIX(Primitive, metaclass=Meta, Size=(1, 30)):
     pass
 
 
-class NAME_PERSONAL(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_SURNAME_PREFIX(Primitive, metaclass=Meta, Size=(1, 30)):
     pass
 
 
-class NAME_PHONETIC(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE_SURNAME(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_PIECE_GIVEN(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_PIECE(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class NAME_PIECE_NICKNAME(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_ROMANISED(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_PIECE_PREFIX(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_TEXT(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_PIECE_SUFFIX(Primitive, metaclass=Meta, Size=(None, None)):
+class NAME_TYPE(Primitive, metaclass=Meta, Size=(5, 30)):
     pass
 
 
-class NAME_PIECE_SURNAME_PREFIX(Primitive, metaclass=Meta, Size=(None, None)):
+class NATIONAL_OR_TRIBAL_ORIGIN(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_PIECE_SURNAME(Primitive, metaclass=Meta, Size=(None, None)):
+class NOBILITY_TYPE_TITLE(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class NAME_ROMANISED(Primitive, metaclass=Meta, Size=(None, None)):
+class NULL(Primitive, metaclass=Meta, Size=(0, 0)):
     pass
 
 
-class NAME_TYPE(Primitive, metaclass=Meta, Size=(None, None)):
+class NUMBER_OF_RELATIONSHIPS(Primitive, metaclass=Meta, Size=(1, 3)):
     pass
 
 
-class NATIONAL_OR_TRIBAL_ORIGIN(Primitive, metaclass=Meta, Size=(None, None)):
+class NUMBER(Primitive, metaclass=Meta, Size=(3, 4)):
     pass
 
 
-class NOBILITY_TYPE_TITLE(Primitive, metaclass=Meta, Size=(None, None)):
+class OCCUPATION(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class NULL(Primitive, metaclass=Meta, Size=(None, None)):
+class PEDIGREE_LINKAGE_TYPE(Primitive, metaclass=Meta, Size=(5, 7)):
     pass
 
 
-class NUMBER_OF_RELATONSHIPS(Primitive, metaclass=Meta, Size=(None, None)):
+class PHONE_NUMBER(Primitive, metaclass=Meta, Size=(1, 25)):
     pass
 
 
-class OCCUPATION(Primitive, metaclass=Meta, Size=(None, None)):
+class PHONETISATION_METHOD(Primitive, metaclass=Meta, Size=(5, 30)):
     pass
 
 
-class PEDIGREE_LINKAGE_TYPE(Primitive, metaclass=Meta, Size=(None, None)):
+class PHYSICAL_DESCRIPTION(Primitive, metaclass=Meta, Size=(1, 4095)):
     pass
 
 
-class PHONE_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_LATITUDE(Primitive, metaclass=Meta, Size=(2, 10)):
     pass
 
 
-class PHONETISATION_METHOD(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_LONGITUDE(Primitive, metaclass=Meta, Size=(2, 11)):
     pass
 
 
-class PHYSICAL_DESCRIPTION(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_NAME(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class PLACE_LATITUDE(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_PHONETIC(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class PLACE_LONGITUDE(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_ROMANISED(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class PLACE_NAME(Primitive, metaclass=Meta, Size=(None, None)):
+class PLACE_TEXT(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class PLACE_PHONETIC(Primitive, metaclass=Meta, Size=(None, None)):
+class POSSESSIONS(Primitive, metaclass=Meta, Size=(1, 248)):
     pass
 
 
-class PLACE_ROMANISED(Primitive, metaclass=Meta, Size=(None, None)):
+class PRODUCT_VERSION_NUMBER(Primitive, metaclass=Meta, Size=(3, 15)):
     pass
 
 
-class POSSESSIONS(Primitive, metaclass=Meta, Size=(None, None)):
+class PUBLICATION_DATE(Primitive, metaclass=Meta, Size=(10, 11)):
     pass
 
 
-class PRODUCT_VERSION_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class RECEIVING_SYSTEM_NAME(Primitive, metaclass=Meta, Size=(1, 20)):
     pass
 
 
-class PUBLICATION_DATE(Primitive, metaclass=Meta, Size=(None, None)):
+class RELATION_IS_DESCRIPTOR(Primitive, metaclass=Meta, Size=(1, 25)):
     pass
 
 
-class RECEIVING_SYSTEM_NAME(Primitive, metaclass=Meta, Size=(None, None)):
+class RELIGIOUS_AFFILIATION(Primitive, metaclass=Meta, Size=(1, 90)):
     pass
 
 
-class RELATION_IS_DESCRIPTOR(Primitive, metaclass=Meta, Size=(None, None)):
+class RESPONSIBLE_AGENCY(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class RELIGIOUS_AFFILIATION(Primitive, metaclass=Meta, Size=(None, None)):
+class ROLE_DESCRIPTOR(Primitive, metaclass=Meta, Size=(1, 25)):
     pass
 
 
-class RESPONSIBLE_AGENCY(Primitive, metaclass=Meta, Size=(None, None)):
+class ROLE_IN_EVENT(Primitive, metaclass=Meta, Size=(3, 27)):
     pass
 
 
-class ROLE_IN_EVENT(Primitive, metaclass=Meta, Size=(None, None)):
+class ROMANISATION_METHOD(Primitive, metaclass=Meta, Size=(5, 30)):
     pass
 
 
-class ROMANISATION_METHOD(Primitive, metaclass=Meta, Size=(None, None)):
+class SCHOLASTIC_ACHIEVEMENT(Primitive, metaclass=Meta, Size=(1, 248)):
     pass
 
 
-class SEX_VALUE(Primitive, metaclass=Meta, Size=(None, None)):
+class SEX_VALUE(Primitive, metaclass=Meta, Size=(1, 1)):
     pass
 
 
-class SCHOLASTIC_ACHIEVEMENT(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_CALL_NUMBER(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class SOURCE_CALL_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_DESCRIPTIVE_TITLE(Primitive, metaclass=Meta, Size=(1, 4095)):
     pass
 
 
-class SOURCE_DESCRIPTIVE_TITLE(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_FILED_BY_ENTRY(Primitive, metaclass=Meta, Size=(1, 60)):
     pass
 
 
-class SOURCE_FILED_BY_ENTRY(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_JURISDICTION_PLACE(Primitive, metaclass=Meta, Size=(1, 120)):
     pass
 
 
-class SOURCE_JURISDICTION_PLACE(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_MEDIA_TYPE(Primitive, metaclass=Meta, Size=(1, 15)):
     pass
 
 
-class SOURCE_MEDIA_TYPE(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_ORIGINATOR(Primitive, metaclass=Meta, Size=(1, 255)):
     pass
 
 
-class SOURCE_ORIGINATOR(Primitive, metaclass=Meta, Size=(None, None)):
+class SOURCE_PUBLICATION_FACTS(Primitive, metaclass=Meta, Size=(1, 4095)):
     pass
 
 
-class SOURCE_PUBLICATION_FACTS(Primitive, metaclass=Meta, Size=(None, None)):
+class SUBMITTER_NAME(Primitive, metaclass=Meta, Size=(1, 60)):
     pass
 
 
-class SUBMITTER_NAME(Primitive, metaclass=Meta, Size=(None, None)):
+class SYSTEM_ID(Primitive, metaclass=Meta, Size=(1, 20)):
     pass
 
 
-class SYSTEM_ID(Primitive, metaclass=Meta, Size=(None, None)):
+class TEXT_FROM_SOURCE(Primitive, metaclass=Meta, Size=(1, 32767)):
     pass
 
 
-class TEXT_FROM_SOURCE(Primitive, metaclass=Meta, Size=(None, None)):
+class TEXT(Primitive, metaclass=Meta, Size=(1, 32767)):
     pass
 
 
-class TIME_VALUE(Primitive, metaclass=Meta, Size=(None, None)):
+class TIME_VALUE(Primitive, metaclass=Meta, Size=(7, 12)):
     pass
 
 
-class USER_REFERENCE_NUMBER(Primitive, metaclass=Meta, Size=(None, None)):
+class USER_REFERENCE_NUMBER(Primitive, metaclass=Meta, Size=(1, 20)):
     pass
 
 
-class USER_REFERENCE_TYPE(Primitive, metaclass=Meta, Size=(None, None)):
+class USER_REFERENCE_TYPE(Primitive, metaclass=Meta, Size=(1, 40)):
     pass
 
 
-class USER_TEXT(Primitive, metaclass=Meta, Size=(None, None)):
+class USER_TEXT(Primitive, metaclass=Meta, Size=(1, 32767)):
     pass
 
 
-class WHERE_WITHIN_SOURCE(Primitive, metaclass=Meta, Size=(None, None)):
+class WHERE_WITHIN_SOURCE(Primitive, metaclass=Meta, Size=(1, 248)):
     pass
 
 
@@ -587,192 +519,8 @@ class XREF_SUBM(XREF_ID, metaclass=Meta, Size=(3, 22)):
     pass
 
 
-class GEDCOM_LINES:
-    def __init__(self):
-        self.lines: List[Union[Callable[[int], GEDCOM_LINE], "GEDCOM_LINES"]] = list()
-
-    def add_text(self, *, level_delta: int, tag: str, primitive: Primitive, xref_id: XREF_ID = None):
-        try:
-
-            def unicode_chunksplit(slicable, safe_chunksize: int):
-                from_char = 0
-                while from_char < len(slicable):
-                    for to_char in range(from_char + safe_chunksize, from_char, -1):
-                        if len(slicable[from_char:to_char].encode("utf-8")) <= safe_chunksize:
-                            yield slicable[from_char:to_char]
-                            from_char = to_char
-                            break
-
-            safe_chunksize = 255
-            safe_chunksize -= len("99")
-            if xref_id:
-                safe_chunksize -= len(" ") + len(str(xref_id).encode("UTF-8"))
-            if tag:
-                safe_chunksize -= len(" ") + len(tag.encode("UTF-8"))
-            safe_chunksize -= len(os.linesep)
-            safe_chunksize -= len(" ")
-            value = str(primitive)
-            if isinstance(primitive, XREF_ID):
-                pass
-            else:
-                value.replace("@", "@@")
-            lines = value.split(os.linesep)
-            if isinstance(primitive, Enum):
-                primitive = primitive.value
-            for line_no, line in enumerate(lines):
-                for text_chunk_no, unicode_text_chunk in enumerate(unicode_chunksplit(line, safe_chunksize)):
-                    if text_chunk_no == 0:
-                        if line_no == 0:
-
-                            def apply_text(
-                                n, level_delta=level_delta, tag=tag, xref_id=xref_id, line_value=unicode_text_chunk
-                            ):
-                                return GEDCOM_LINE(
-                                    level=n + level_delta, tag=tag, xref_id=xref_id, line_value=line_value
-                                )
-
-                            self.lines.append(apply_text)
-                            continue
-                        else:
-
-                            def apply_cont(n, level_delta=level_delta, xref_id=xref_id, line_value=unicode_text_chunk):
-                                return GEDCOM_LINE(
-                                    level=n + level_delta + 1, tag="CONT", xref_id=xref_id, line_value=line_value
-                                )
-
-                            self.lines.append(apply_cont)
-                    else:
-
-                        def apply_conc(n, level_delta=level_delta, xref_id=xref_id, line_value=unicode_text_chunk):
-                            return GEDCOM_LINE(
-                                level=n + level_delta + 1, tag="CONC", xref_id=xref_id, line_value=line_value
-                            )
-
-                        if hasattr(primitive, "meta"):
-                            if max(getattr(getattr(primitive, "meta"), "Size")) <= 248:
-                                raise ValueError(
-                                    f"'never uses CONC records for line values with a maximum length of 248 or less': {line}"
-                                )
-                            else:
-                                self.lines.append(apply_conc)
-        except Exception as ex:
-            raise ex
-
-    def add_primitives(self, level_delta: int, tag: str, *primitives: Optional[Primitive], xref_id: XREF_ID = None):
-        if primitives:
-            for primitive in primitives:
-                if primitive:
-                    self.add_text(level_delta=level_delta, tag=tag, primitive=primitive, xref_id=xref_id)
-        else:
-
-            def apply(n, level_delta=level_delta, tag=tag, xref_id=xref_id):
-                return GEDCOM_LINE(level=n + level_delta, tag=tag, xref_id=xref_id, line_value=None)
-
-            self.lines.append(apply)
-
-    def add_substructures(self, level_delta: int, *substructs: Optional["Substructure"]):
-        if substructs:
-            for substruct in substructs:
-                if substruct:
-
-                    def apply(n, level_delta=level_delta, substruct=substruct):
-                        return substruct(n + level_delta)
-
-                    self.lines.append(apply)
-
-    def __call__(self, level=int):
-        return "".join([str(line(level)) for line in self.lines])
-
-
-class Tag:
+class YEAR(Primitive, metaclass=Meta, Size=(3, 4)):
     pass
-
-
-class Pointer:
-    pass
-
-
-class Substructure(object):
-    @classmethod
-    def nested_classes(cls, *queries):
-        inners = []
-        for attrname in dir(cls):
-            attr = getattr(cls, attrname)
-            if isinstance(attr, type) and any(issubclass(attr, innercls) for innercls in queries):
-                inners.append(attr)
-        return inners
-
-    def instances_of_nested_classes(self, *queries):
-        inners = []
-        for attrname in dir(self):
-            attr = getattr(self, attrname)
-            if not isinstance(attr, type) and any(isinstance(attr, innercls) for innercls in queries):
-                inners.append(attr)
-        return inners
-
-    @staticmethod
-    def find_stuff(nested, base, level=0):
-        if isinstance(nested, Primitive):
-            if isinstance(nested, base):
-                yield nested
-            else:
-                raise ValueError(f"do not understand what to do with this one! nested={nested} base={base}")
-        else:
-            yield from (
-                attribute
-                for attribute in (getattr(nested, attr) for attr in dir(nested))
-                if isinstance(attribute, base)
-            )
-
-    def __call__(self, lines: GEDCOM_LINES):
-        if isinstance(self, Tag):
-            lines.add_primitives(self.__class__.__qualname__.count(".") - 1, self.__class__.__name__)
-        elif isinstance(self, XREF_ID):
-            lines.add_primitives(self.__class__.__qualname__.count(".") - 1, self.__class__.__name__, xref_id=self)
-        clssource = inspect.getsource(self.__class__)
-        nesteds = list(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
-        nesteds = sorted(
-            nesteds,
-            key=lambda p: result.start()
-            if (
-                result := re.search(
-                    fr"class\s+{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*{p.__class__.__name__}", clssource
-                )
-            )
-            else float("inf"),
-        )
-        print(f"self={self}")
-        for nested in nesteds:
-            level = nested.__class__.__qualname__.count(".") - 1
-            tag = nested.__class__.__name__
-            bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
-            xrefs: List[XREF_ID] = list()
-            primitives: List[Primitive] = list()
-            substructures: List[Substructure] = list()
-            for base in bases:
-                if isinstance(nested, Pointer) and issubclass(base, XREF_ID):
-                    xrefs.extend(Substructure.find_stuff(nested, base))
-                if issubclass(base, Primitive):
-                    primitives.extend(Substructure.find_stuff(nested, base))
-                if issubclass(base, Substructure):
-                    substructures.extend(Substructure.find_stuff(nested, base))
-            if primitives:
-                print(f"<primitives:{primitives}>")
-                lines.add_primitives(level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
-            if substructures:
-                print(f"<substructures:{substructures}>")
-                lines.add_substructures(level, *substructures)
-            try:
-                print(f"<try:{nested}>")
-                nested(lines)
-            except Exception as _:
-                try:
-                    print(f"<except:{nested}>")
-                    lines.add_primitives(level, tag, xref_id=xrefs[0] if xrefs else None)
-                except Exception as _:
-                    print(f"<unused?:{nested}>")
-                    pass
-        return lines
 
 
 class MULTIMEDIA_LINK(Substructure):
@@ -1118,7 +866,7 @@ class INDIVIDUAL_ATTRIBUTE_STRUCTUREs(Substructure):
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class NMR(NUMBER_OF_RELATONSHIPS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class NMR(NUMBER_OF_RELATIONSHIPS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
@@ -1425,3 +1173,161 @@ class LINEAGE_LINKED_GEDCOM_FILE(Substructure):
     SUBMITTER_RECORD = SUBMITTER_RECORD
     LINEAGE_LINKED_RECORD = LINEAGE_LINKED_RECORDs
     GEDCOM_TRAILER = GEDCOM_TRAILER
+
+
+__all__ = [
+    "ADDRESS_CITY",
+    "ADDRESS_COUNTRY",
+    "ADDRESS_EMAIL",
+    "ADDRESS_FAX",
+    "ADDRESS_LINE1",
+    "ADDRESS_LINE2",
+    "ADDRESS_LINE3",
+    "ADDRESS_POSTAL_CODE",
+    "ADDRESS_STATE",
+    "ADDRESS_STRUCTURE",
+    "ADDRESS_WEB_PAGE",
+    "ADOPTED_BY_WHICH_PARENT",
+    "AGE_AT_EVENT",
+    "ASSOCIATION_STRUCTURE",
+    "ATTRIBUTE_DESCRIPTOR",
+    "ATTRIBUTE_TYPE",
+    "AUTOMATED_RECORD_ID",
+    "BEFORE_COMMON_ERA",
+    "CASTE_NAME",
+    "CAUSE_OF_EVENT",
+    "CERTAINTY_ASSESSMENT",
+    "CHANGE_DATE",
+    "CHARACTER_ENCODING",
+    "CHILD_TO_FAMILY_LINK",
+    "COPYRIGHT_GEDCOM_FILE",
+    "COPYRIGHT_SOURCE_DATA",
+    "COUNT_OF_CHILDREN",
+    "DATE",
+    "DATE_APPROXIMATED",
+    "DATE_CALENDAR",
+    "DATE_CALENDAR_ESCAPE",
+    "DATE_EXACT",
+    "DATE_FREN",
+    "DATE_GREG",
+    "DATE_HEBR",
+    "DATE_JULN",
+    "DATE_PERIOD",
+    "DATE_PHRASE",
+    "DATE_RANGE",
+    "DATE_VALUE",
+    "DAY",
+    "DESCRIPTIVE_TITLE",
+    "DIGIT",
+    "DUAL_STYLE_YEAR",
+    "ENTRY_RECORDING_DATE",
+    "EVENT_ATTRIBUTE_TYPE",
+    "EVENT_DESCRIPTOR",
+    "EVENT_DETAIL",
+    "EVENT_OR_FACT_CLASSIFICATION",
+    "EVENT_TYPE_CITED_FROM",
+    "EVENT_TYPE_FAMILY",
+    "EVENT_TYPE_INDIVIDUAL",
+    "EVENTS_RECORDED",
+    "FAMILY_EVENT_DETAIL",
+    "FAMILY_EVENT_STRUCTUREs",
+    "FILE_CREATION_DATE",
+    "FORM_RECORDS",
+    "GEDCOM_CONTENT_DESCRIPTION",
+    "GEDCOM_FILE_NAME",
+    "GEDCOM_FORM",
+    "GEDCOM_FORM_HEADER_EXTENSION",
+    "GEDCOM_HEADER",
+    "GEDCOM_TRAILER",
+    "GEDCOM_VERSION_NUMBER",
+    "ID_NUMBER",
+    "INDIVIDUAL_ATTRIBUTE_STRUCTUREs",
+    "INDIVIDUAL_EVENT_DETAIL",
+    "INDIVIDUAL_EVENT_STRUCTUREs",
+    "LANGUAGE_ID",
+    "LANGUAGE_OF_TEXT",
+    "LINEAGE_LINKED_GEDCOM_FILE",
+    "LINEAGE_LINKED_RECORDs",
+    "MONTH",
+    "MONTH_FREN",
+    "MONTH_HEBR",
+    "MULTIMEDIA_FILE_REFERENCE",
+    "MULTIMEDIA_FORMAT",
+    "MULTIMEDIA_LINK",
+    "NAME_OF_BUSINESS",
+    "NAME_OF_PRODUCT",
+    "NAME_OF_REPOSITORY",
+    "NAME_OF_SOURCE_DATA",
+    "NAME_PERSONAL",
+    "NAME_PHONETIC",
+    "NAME_PIECE",
+    "NAME_PIECE_GIVEN",
+    "NAME_PIECE_NICKNAME",
+    "NAME_PIECE_PREFIX",
+    "NAME_PIECE_SUFFIX",
+    "NAME_PIECE_SURNAME",
+    "NAME_PIECE_SURNAME_PREFIX",
+    "NAME_ROMANISED",
+    "NAME_TEXT",
+    "NAME_TYPE",
+    "NATIONAL_OR_TRIBAL_ORIGIN",
+    "NOBILITY_TYPE_TITLE",
+    "NOTE_STRUCTURE",
+    "NULL",
+    "NUMBER",
+    "NUMBER_OF_RELATIONSHIPS",
+    "OCCUPATION",
+    "PEDIGREE_LINKAGE_TYPE",
+    "PERSONAL_NAME_PIECES",
+    "PERSONAL_NAME_STRUCTURE",
+    "PHONE_NUMBER",
+    "PHONETISATION_METHOD",
+    "PHYSICAL_DESCRIPTION",
+    "PLACE_LATITUDE",
+    "PLACE_LONGITUDE",
+    "PLACE_NAME",
+    "PLACE_PHONETIC",
+    "PLACE_ROMANISED",
+    "PLACE_STRUCTURE",
+    "PLACE_TEXT",
+    "POSSESSIONS",
+    "PRODUCT_VERSION_NUMBER",
+    "PUBLICATION_DATE",
+    "RECEIVING_SYSTEM_NAME",
+    "RELATION_IS_DESCRIPTOR",
+    "RELIGIOUS_AFFILIATION",
+    "RESPONSIBLE_AGENCY",
+    "ROLE_DESCRIPTOR",
+    "ROLE_IN_EVENT",
+    "ROMANISATION_METHOD",
+    "SCHOLASTIC_ACHIEVEMENT",
+    "SEX_VALUE",
+    "SOURCE_CALL_NUMBER",
+    "SOURCE_CITATION",
+    "SOURCE_DESCRIPTIVE_TITLE",
+    "SOURCE_FILED_BY_ENTRY",
+    "SOURCE_JURISDICTION_PLACE",
+    "SOURCE_MEDIA_TYPE",
+    "SOURCE_ORIGINATOR",
+    "SOURCE_PUBLICATION_FACTS",
+    "SOURCE_REPOSITORY_CITATION",
+    "SPOUSE_TO_FAMILY_LINK",
+    "SUBMITTER_NAME",
+    "SUBMITTER_RECORD",
+    "SYSTEM_ID",
+    "TEXT",
+    "TEXT_FROM_SOURCE",
+    "TIME_VALUE",
+    "USER_REFERENCE_NUMBER",
+    "USER_REFERENCE_TYPE",
+    "USER_TEXT",
+    "WHERE_WITHIN_SOURCE",
+    "XREF_FAM",
+    "XREF_INDI",
+    "XREF_NOTE",
+    "XREF_OBJE",
+    "XREF_REPO",
+    "XREF_SOUR",
+    "XREF_SUBM",
+    "YEAR",
+]
