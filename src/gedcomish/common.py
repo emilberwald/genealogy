@@ -1,11 +1,13 @@
-import re
 import datetime
-import uuid
-from typing import Tuple, List, Union, Optional, Callable, Iterable
-from enum import Enum
-import warnings
 import inspect
 import os
+import pathlib
+import re
+import uuid
+import warnings
+import itertools
+from enum import Enum
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 
 class Meta(type):
@@ -286,6 +288,31 @@ class Substructure(object):
                 if isinstance(attribute, base)
             )
 
+    def itersource(self):
+        file = inspect.getsourcefile(self.__class__)
+        source = pathlib.Path(file).read_text()
+        starts = list(re.finditer(fr"^(?=class)", source, re.MULTILINE))
+        ends = starts[1:]
+        for end, start in itertools.zip_longest(
+            (end.start() if end else None for end in ends), (start.start() if start else None for start in starts)
+        ):
+            for m in re.finditer(fr"(?=class\s+{self.__class__.__name__}\s*\()", source[start:end]):
+                yield source[start:end][m.start() :]
+
+    def getsource(self, nesteds):
+        def score(source, nesteds):
+            tot = 0
+            for nested in nesteds:
+                if isinstance(nested, Iterable):
+                    for subnested in nested:
+                        tot += subnested.__class__.__name__ in source
+                else:
+                    tot += nested.__class__.__name__ in source
+            return tot
+        alternatives = [inspect.getsource(self.__class__), *self.itersource()]
+        best = max(alternatives, key=lambda alternative, nesteds=nesteds: score(alternative, nesteds))
+        return best
+
     def __call__(self, lines: GEDCOM_LINES, delta_level=0):
         print(f"[{self.__class__.__qualname__}:{delta_level}]")
         if isinstance(self, Tag):
@@ -296,19 +323,25 @@ class Substructure(object):
             print(f"<XREF_ID>")
             level = self.__class__.__qualname__.count(".") - 1
             lines.add_primitives(level, self.__class__.__name__, xref_id=self)
-        clssource = inspect.getsource(self.__class__)
+
         nesteds = list(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
+
+        clssource = self.getsource(nesteds)
+
         nesteds = sorted(
             nesteds,
-            key=lambda p: result.start()
+            key=lambda nested, clssource=clssource: result.start()
             if (
                 result := re.search(
-                    fr"class\s+{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*Iterable",
+                    fr"class\s+{nested.__class__.__name__}"
+                    fr"|{nested.__class__.__name__}\s*=\s*{nested.__class__.__name__}"
+                    fr"|{nested.__class__.__name__}\s*=\s*Iterable",
                     clssource,
                 )
             )
             else float("inf"),
         )
+        print(f"{nesteds}")
         for nested in nesteds:
             if isinstance(nested, Iterable):
                 for subnested in nested:
