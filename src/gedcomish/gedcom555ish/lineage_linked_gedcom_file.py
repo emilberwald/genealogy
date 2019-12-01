@@ -1,5 +1,6 @@
-from ..common import XREF_ID, Meta, Primitive, Tag, Pointer, Substructure, get_gedcom_date
 from typing import Iterable
+
+from ..common import XREF_ID, Meta, Option, Pointer, Primitive, Substructure, Tag, get_gedcom_date
 
 
 class ADDRESS_CITY(Primitive, metaclass=Meta, Size=(1, 60)):
@@ -664,40 +665,40 @@ class FAMILY_EVENT_STRUCTUREs(Substructure):
     class FAMILY_EVENT_STRUCTURE(Substructure):
         pass
 
-    class ANUL(FAMILY_EVENT_STRUCTURE, Substructure):
+    class ANUL(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class CENS(FAMILY_EVENT_STRUCTURE, Substructure):
+    class CENS(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class DIV(FAMILY_EVENT_STRUCTURE, Substructure):
+    class DIV(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class DIVF(FAMILY_EVENT_STRUCTURE, Substructure):
+    class DIVF(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class ENGA(FAMILY_EVENT_STRUCTURE, Substructure):
+    class ENGA(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class MARB(FAMILY_EVENT_STRUCTURE, Substructure):
+    class MARB(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class MARC(FAMILY_EVENT_STRUCTURE, Substructure):
+    class MARC(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class MARR(FAMILY_EVENT_STRUCTURE, Substructure):
+    class MARR(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class MARL(FAMILY_EVENT_STRUCTURE, Substructure):
+    class MARL(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class MARS(FAMILY_EVENT_STRUCTURE, Substructure):
+    class MARS(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class RESI(FAMILY_EVENT_STRUCTURE, Substructure):
+    class RESI(FAMILY_EVENT_STRUCTURE, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
-    class EVEN(FAMILY_EVENT_STRUCTURE, EVENT_DESCRIPTOR, NULL, Substructure):
+    class EVEN(FAMILY_EVENT_STRUCTURE, EVENT_DESCRIPTOR, NULL, Option, Substructure):
         FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL
 
 
@@ -759,77 +760,77 @@ class INDIVIDUAL_EVENT_STRUCTUREs(Substructure):
     class INDIVIDUAL_EVENT_STRUCTURE(Substructure):
         pass
 
-    class BIRT(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class BIRT(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class FAMC(XREF_FAM, Substructure):
             pass
 
-    class CHR(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class CHR(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class FAMC(XREF_FAM, Substructure):
             pass
 
-    class DEAT(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class DEAT(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class BURI(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class BURI(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class CREM(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class CREM(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class ADOP(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class ADOP(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class FAMC(XREF_FAM, Substructure):
             class ADOP(ADOPTED_BY_WHICH_PARENT, Substructure):
                 pass
 
-    class BAPM(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class BAPM(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class BARM(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class BARM(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class BASM(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class BASM(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class CHRA(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class CHRA(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class CONF(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class CONF(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class FCOM(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class FCOM(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class NATU(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class NATU(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class EMIG(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class EMIG(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class IMMI(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class IMMI(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class CENS(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class CENS(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class PROB(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class PROB(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class WILL(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class WILL(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class GRAD(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class GRAD(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class RETI(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class RETI(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
-    class EVEN(INDIVIDUAL_EVENT_STRUCTURE, Substructure):
+    class EVEN(INDIVIDUAL_EVENT_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
 
@@ -837,79 +838,79 @@ class INDIVIDUAL_ATTRIBUTE_STRUCTUREs(Substructure):
     class INDIVIDUAL_ATTRIBUTE_STRUCTURE(Substructure):
         pass
 
-    class CAST(CASTE_NAME, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class CAST(CASTE_NAME, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class DSCR(PHYSICAL_DESCRIPTION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class DSCR(PHYSICAL_DESCRIPTION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class EDUC(SCHOLASTIC_ACHIEVEMENT, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class EDUC(SCHOLASTIC_ACHIEVEMENT, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class IDNO(ID_NUMBER, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class IDNO(ID_NUMBER, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class NATI(NATIONAL_OR_TRIBAL_ORIGIN, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class NATI(NATIONAL_OR_TRIBAL_ORIGIN, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class NCHI(COUNT_OF_CHILDREN, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class NCHI(COUNT_OF_CHILDREN, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class NMR(NUMBER_OF_RELATIONSHIPS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class NMR(NUMBER_OF_RELATIONSHIPS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class OCCU(OCCUPATION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class OCCU(OCCUPATION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class PROP(POSSESSIONS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class PROP(POSSESSIONS, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class RELI(RELIGIOUS_AFFILIATION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class RELI(RELIGIOUS_AFFILIATION, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class RESI(INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class RESI(INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class TITL(NOBILITY_TYPE_TITLE, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class TITL(NOBILITY_TYPE_TITLE, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
             pass
 
-    class FACT(ATTRIBUTE_DESCRIPTOR, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Substructure):
+    class FACT(ATTRIBUTE_DESCRIPTOR, INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, Substructure):
         INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL
 
         class TYPE(USER_REFERENCE_TYPE, Substructure):
@@ -954,7 +955,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
     class LINEAGE_LINKED_RECORD(Substructure):
         pass
 
-    class FAM_GROUP_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class FAM_GROUP_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class FAM(XREF_FAM, Pointer, Substructure):
             FAMILY_EVENT_STRUCTUREs = Iterable[FAMILY_EVENT_STRUCTUREs.FAMILY_EVENT_STRUCTURE]
 
@@ -985,7 +986,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
-    class INDIVIDUAL_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class INDIVIDUAL_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class INDI(XREF_INDI, Pointer, Substructure):
             PERSONAL_NAME_STRUCTUREs = Iterable[PERSONAL_NAME_STRUCTURE]
 
@@ -1008,7 +1009,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
-    class MULTIMEDIA_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class MULTIMEDIA_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class OBJE(XREF_OBJE, Pointer, Substructure):
             class FILE(MULTIMEDIA_FILE_REFERENCE, Substructure):
                 class FORM(MULTIMEDIA_FORMAT, Substructure):
@@ -1029,7 +1030,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             CHANGE_DATE = CHANGE_DATE
 
-    class NOTE_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class NOTE_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class NOTE(XREF_NOTE, USER_TEXT, Pointer, Substructure):
             REFNs = Iterable[REFN]
 
@@ -1039,7 +1040,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             CHANGE_DATE = CHANGE_DATE
 
-    class REPOSITORY_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class REPOSITORY_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class REPO(XREF_REPO, Pointer, Substructure):
             class NAME(NAME_OF_REPOSITORY, Substructure):
                 pass
@@ -1053,7 +1054,7 @@ class LINEAGE_LINKED_RECORDs(Substructure):
 
             CHANGE_DATE = CHANGE_DATE
 
-    class SOURCE_RECORD(LINEAGE_LINKED_RECORD, Substructure):
+    class SOURCE_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure):
         class SOUR(XREF_SOUR, Substructure):
             class DATA(Tag, Substructure):
                 class EVEN(EVENTS_RECORDED, Substructure):
@@ -1139,7 +1140,30 @@ class GEDCOM_FORM_HEADER_EXTENSION(Substructure):
             pass
 
 
-class GEDCOM_HEADER(Substructure):
+class SUBM(XREF_SUBM, Pointer, Substructure):
+    class NAME(SUBMITTER_NAME, Substructure):
+        pass
+
+    ADDRESS_STRUCTURE = ADDRESS_STRUCTURE
+    MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
+
+    class RIN(AUTOMATED_RECORD_ID, Substructure):
+        pass
+
+    NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+    CHANGE_DATE = CHANGE_DATE
+
+
+class SUBMITTER_RECORD(Substructure):
+    SUBM = SUBM
+
+
+class FORM_RECORDS(Substructure):
+    SUBMITTER_RECORD = SUBMITTER_RECORD
+    LINEAGE_LINKED_RECORDs = Iterable[LINEAGE_LINKED_RECORDs.LINEAGE_LINKED_RECORD]
+
+
+class LINEAGE_LINKED_GEDCOM_FILE(Substructure):
     class HEAD(Tag, Substructure):
         class GEDC(Tag, Substructure):
             class VERS(GEDCOM_VERSION_NUMBER, Substructure):
@@ -1152,37 +1176,19 @@ class GEDCOM_HEADER(Substructure):
         class CHAR(CHARACTER_ENCODING, Substructure):
             pass
 
+    GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSION.LINEAGE_LINKED_HEADER_EXTENSION
+    FORM_RECORDS = FORM_RECORDS
 
-class SUBMITTER_RECORD(Substructure):
-    class SUBM(XREF_SUBM, Pointer, Substructure):
-        class NAME(SUBMITTER_NAME, Substructure):
-            pass
-
-        ADDRESS_STRUCTURE = ADDRESS_STRUCTURE
-        MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
-
-        class RIN(AUTOMATED_RECORD_ID, Substructure):
-            pass
-
-        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
-        CHANGE_DATE = CHANGE_DATE
-
-
-class GEDCOM_TRAILER(Substructure):
     class TRLR(Tag, Substructure):
         pass
 
 
-class FORM_RECORDS(Substructure):
-    SUBMITTER_RECORD = SUBMITTER_RECORD
-    LINEAGE_LINKED_RECORDs = Iterable[LINEAGE_LINKED_RECORDs.LINEAGE_LINKED_RECORD]
+class GEDCOM_HEADER:
+    HEAD = LINEAGE_LINKED_GEDCOM_FILE.HEAD
 
 
-class LINEAGE_LINKED_GEDCOM_FILE(Substructure):
-    GEDCOM_HEADER = GEDCOM_HEADER
-    GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSION
-    FORM_RECORDS = FORM_RECORDS
-    GEDCOM_TRAILER = GEDCOM_TRAILER
+class GEDCOM_TRAILER:
+    TRLR = LINEAGE_LINKED_GEDCOM_FILE.TRLR
 
 
 __all__ = [
@@ -1245,9 +1251,9 @@ __all__ = [
     "FORM_RECORDS",
     "GEDCOM_CONTENT_DESCRIPTION",
     "GEDCOM_FILE_NAME",
-    "GEDCOM_FORM",
-    "GEDCOM_FORM_HEADER_EXTENSION",
     "GEDCOM_HEADER",
+    "GEDCOM_FORM",
+    "GEDCOM_FORM_HEADER_EXTENSIONs",
     "GEDCOM_TRAILER",
     "GEDCOM_VERSION_NUMBER",
     "ID_NUMBER",
