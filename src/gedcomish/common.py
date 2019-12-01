@@ -1,7 +1,7 @@
 import re
 import datetime
 import uuid
-from typing import Tuple, List, Union, Optional, Callable
+from typing import Tuple, List, Union, Optional, Callable, Iterable
 from enum import Enum
 import warnings
 import inspect
@@ -137,7 +137,6 @@ class Primitive:
             self.value += str(kwarg)
 
     def __str__(self):
-        print(f"<Primitive:{self.value}")
         return self.value
 
 
@@ -217,12 +216,14 @@ class GEDCOM_LINES:
         if primitives:
             for primitive in primitives:
                 if primitive:
+                    print(f"\t\t<{level_delta} {tag} {primitive} {xref_id}>")
                     self.add_text(level_delta=level_delta, tag=tag, primitive=primitive, xref_id=xref_id)
         else:
 
             def apply(n, level_delta=level_delta, tag=tag, xref_id=xref_id):
                 return GEDCOM_LINE(level=n + level_delta, tag=tag, xref_id=xref_id, line_value=None)
 
+            print(f"\t\t<{level_delta} {tag} {primitives} {xref_id}>")
             self.lines.append(apply)
 
     def add_substructures(self, level_delta: int, *substructs: Optional["Substructure"]):
@@ -233,6 +234,7 @@ class GEDCOM_LINES:
                     def apply(n, level_delta=level_delta, substruct=substruct):
                         return substruct(n + level_delta)
 
+                    print(f"\t\t<<{level_delta} {substructs}>>")
                     self.lines.append(apply)
 
     def __call__(self, level=int):
@@ -261,7 +263,12 @@ class Substructure(object):
         inners = []
         for attrname in dir(self):
             attr = getattr(self, attrname)
-            if not isinstance(attr, type) and any(isinstance(attr, innercls) for innercls in queries):
+            if isinstance(attr, Iterable):
+                if any(isinstance(subattr, innercls) for subattr in attr for innercls in queries):
+                    inners.append(attr)
+            elif not isinstance(attr, type) and any(
+                isinstance(attr, innercls) for innercls in queries if innercls is not Iterable
+            ):
                 inners.append(attr)
         return inners
 
@@ -279,11 +286,16 @@ class Substructure(object):
                 if isinstance(attribute, base)
             )
 
-    def __call__(self, lines: GEDCOM_LINES):
+    def __call__(self, lines: GEDCOM_LINES, delta_level=0):
+        print(f"[{self.__class__.__qualname__}:{delta_level}]")
         if isinstance(self, Tag):
-            lines.add_primitives(self.__class__.__qualname__.count(".") - 1, self.__class__.__name__)
+            print(f"<tag>")
+            level = self.__class__.__qualname__.count(".") - 1 + delta_level
+            lines.add_primitives(level, self.__class__.__name__)
         elif isinstance(self, XREF_ID):
-            lines.add_primitives(self.__class__.__qualname__.count(".") - 1, self.__class__.__name__, xref_id=self)
+            print(f"<XREF_ID>")
+            level = self.__class__.__qualname__.count(".") - 1
+            lines.add_primitives(level, self.__class__.__name__, xref_id=self)
         clssource = inspect.getsource(self.__class__)
         nesteds = list(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
         nesteds = sorted(
@@ -291,42 +303,56 @@ class Substructure(object):
             key=lambda p: result.start()
             if (
                 result := re.search(
-                    fr"class\s+{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*{p.__class__.__name__}", clssource
+                    fr"class\s+{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*{p.__class__.__name__}|{p.__class__.__name__}\s*=\s*Iterable",
+                    clssource,
                 )
             )
             else float("inf"),
         )
-        print(f"self={self}")
         for nested in nesteds:
-            level = nested.__class__.__qualname__.count(".") - 1
-            tag = nested.__class__.__name__
-            bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
-            xrefs: List[XREF_ID] = list()
-            primitives: List[Primitive] = list()
-            substructures: List[Substructure] = list()
-            for base in bases:
-                if isinstance(nested, Pointer) and issubclass(base, XREF_ID):
-                    xrefs.extend(Substructure.find_stuff(nested, base))
-                if issubclass(base, Primitive):
-                    primitives.extend(Substructure.find_stuff(nested, base))
-                if issubclass(base, Substructure):
-                    substructures.extend(Substructure.find_stuff(nested, base))
-            if primitives:
-                print(f"<primitives:{primitives}>")
-                lines.add_primitives(level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
-            if substructures:
-                print(f"<substructures:{substructures}>")
-                lines.add_substructures(level, *substructures)
-            try:
-                print(f"<try:{nested}>")
-                nested(lines)
-            except Exception as _:
+            if isinstance(nested, Iterable):
+                for subnested in nested:
+                    print(f"<Iterable>: {self}>{nested}>{subnested} [{delta_level}]")
+                    subnested(lines, delta_level=delta_level + 1)
+            else:
+                if re.search(fr"{nested.__class__.__name__}\s*=\s*{nested.__class__.__name__}", clssource):
+                    delta_level = delta_level + self.__class__.__qualname__.count(".")
+                level = (nested.__class__.__qualname__.count(".") - 1) + delta_level
+                tag = nested.__class__.__name__
+                bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
+                xrefs: List[XREF_ID] = list()
+                primitives: List[Primitive] = list()
+                substructures: List[Substructure] = list()
+                for base in bases:
+                    if isinstance(nested, Pointer) and issubclass(base, XREF_ID):
+                        xrefs.extend(Substructure.find_stuff(nested, base))
+                    if issubclass(base, Primitive):
+                        primitives.extend(Substructure.find_stuff(nested, base))
+                    if issubclass(base, Substructure):
+                        substructures.extend(Substructure.find_stuff(nested, base))
+                if primitives:
+                    print(f"<primitives>")
+                    lines.add_primitives(level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
+                if substructures:
+                    print(f"<substructures>")
+                    lines.add_substructures(level, *substructures)
                 try:
-                    print(f"<except:{nested}>")
-                    lines.add_primitives(level, tag, xref_id=xrefs[0] if xrefs else None)
-                except Exception as _:
-                    print(f"<unused?:{nested}>")
-                    pass
+                    print(f"<try>")
+                    nested(lines, delta_level=delta_level)
+                except Exception as e:
+                    try:
+                        if isinstance(nested, Tag):
+                            print(f"<except:Tag:{e}>")
+                            pass
+                        elif isinstance(nested, XREF_ID):
+                            print(f"<except:XREF_ID:{e}>")
+                            pass
+                        else:
+                            print(f"<except:{e}>")
+                            lines.add_primitives(level, tag, xref_id=xrefs[0] if xrefs else None)
+                    except Exception as ee:
+                        print(f"<except-except:{ee}>")
+                        pass
         return lines
 
 

@@ -1,4 +1,5 @@
 from ..common import XREF_ID, Meta, Primitive, Tag, Pointer, Substructure, get_gedcom_date
+from typing import Iterable
 
 
 class ADDRESS_CITY(Primitive, metaclass=Meta, Size=(1, 60)):
@@ -196,10 +197,6 @@ class EVENTS_RECORDED(Primitive, metaclass=Meta, Size=(1, 90)):
 
 
 class FILE_CREATION_DATE(Primitive, metaclass=Meta, Size=(10, 11)):
-    pass
-
-
-class FORM_RECORDS(Primitive, metaclass=Meta, Size=(1, 1)):
     pass
 
 
@@ -539,7 +536,7 @@ class CHANGE_DATE(Substructure):
             class TIME(TIME_VALUE, Substructure):
                 pass
 
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
 
 class SOURCE_CITATION(Substructure):
@@ -558,8 +555,10 @@ class SOURCE_CITATION(Substructure):
             class TEXT(TEXT_FROM_SOURCE, Substructure):
                 pass
 
-        MULTIMEDIA_LINK = MULTIMEDIA_LINK
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+            TEXTs = Iterable[TEXT]
+
+        MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
         class QUAY(CERTAINTY_ASSESSMENT, Substructure):
             pass
@@ -607,9 +606,13 @@ class PLACE_STRUCTURE(Substructure):
             class TYPE(PHONETISATION_METHOD, Substructure):
                 pass
 
+        FONEs = Iterable[FONE]
+
         class ROMN(PLACE_ROMANISED, Substructure):
             class TYPE(ROMANISATION_METHOD, Substructure):
                 pass
+
+        ROMNs = Iterable[ROMN]
 
         class MAP(Tag, Substructure):
             class LATI(PLACE_LATITUDE, Substructure):
@@ -618,7 +621,7 @@ class PLACE_STRUCTURE(Substructure):
             class LONG(PLACE_LONGITUDE, Substructure):
                 pass
 
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
 
 class EVENT_DETAIL(Substructure):
@@ -640,9 +643,9 @@ class EVENT_DETAIL(Substructure):
     class CAUS(CAUSE_OF_EVENT, Substructure):
         pass
 
-    NOTE_STRUCTURE = NOTE_STRUCTURE
-    SOURCE_CITATION = SOURCE_CITATION
-    MULTIMEDIA_LINK = MULTIMEDIA_LINK
+    NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+    SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
+    MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
 
 class FAMILY_EVENT_DETAIL(Substructure):
@@ -717,8 +720,8 @@ class PERSONAL_NAME_PIECES(Substructure):
     class NSFX(NAME_PIECE_SUFFIX, Substructure):
         pass
 
-    NOTE_STRUCTURE = NOTE_STRUCTURE
-    SOURCE_CITATION = SOURCE_CITATION
+    NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+    SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
 
 
 class PERSONAL_NAME_STRUCTURE(Substructure):
@@ -734,11 +737,15 @@ class PERSONAL_NAME_STRUCTURE(Substructure):
 
             PERSONAL_NAME_PIECES = PERSONAL_NAME_PIECES
 
+        FONEs = Iterable[FONE]
+
         class ROMN(NAME_ROMANISED, Substructure):
             class TYPE(ROMANISATION_METHOD, Substructure):
                 pass
 
             PERSONAL_NAME_PIECES = PERSONAL_NAME_PIECES
+
+        ROMNs = Iterable[ROMN]
 
 
 class INDIVIDUAL_EVENT_DETAIL(Substructure):
@@ -914,12 +921,12 @@ class CHILD_TO_FAMILY_LINK(Substructure):
         class PEDI(PEDIGREE_LINKAGE_TYPE, Substructure):
             pass
 
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
 
 class SPOUSE_TO_FAMILY_LINK(Substructure):
     class FAMS(XREF_FAM, Substructure):
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
 
 class ASSOCIATION_STRUCTURE(Substructure):
@@ -927,8 +934,8 @@ class ASSOCIATION_STRUCTURE(Substructure):
         class RELA(RELATION_IS_DESCRIPTOR, Substructure):
             pass
 
-        SOURCE_CITATION = SOURCE_CITATION
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
 
 class SOURCE_REPOSITORY_CITATION(Substructure):
@@ -938,13 +945,18 @@ class SOURCE_REPOSITORY_CITATION(Substructure):
                 pass
 
 
+class REFN(USER_REFERENCE_NUMBER, Substructure):
+    class TYPE(USER_REFERENCE_TYPE, Substructure):
+        pass
+
+
 class LINEAGE_LINKED_RECORDs(Substructure):
     class LINEAGE_LINKED_RECORD(Substructure):
         pass
 
     class FAM_GROUP_RECORD(LINEAGE_LINKED_RECORD, Substructure):
         class FAM(XREF_FAM, Pointer, Substructure):
-            FAMILY_EVENT_STRUCTURE = FAMILY_EVENT_STRUCTUREs
+            FAMILY_EVENT_STRUCTUREs = Iterable[FAMILY_EVENT_STRUCTUREs.FAMILY_EVENT_STRUCTURE]
 
             class HUSB(XREF_INDI, Substructure):
                 pass
@@ -955,11 +967,12 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             class CHIL(XREF_INDI, Substructure):
                 pass
 
+            CHILs = Iterable[CHIL]
+
             class NCHI(COUNT_OF_CHILDREN, Substructure):
                 pass
 
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                pass
+            REFNs = Iterable[REFN]
 
             class TYPE(USER_REFERENCE_TYPE, Substructure):
                 pass
@@ -968,34 +981,32 @@ class LINEAGE_LINKED_RECORDs(Substructure):
                 pass
 
             CHANGE_DATE = CHANGE_DATE
-            NOTE_STRUCTURE = NOTE_STRUCTURE
-            SOURCE_CITATION = SOURCE_CITATION
-            MULTIMEDIA_LINK = MULTIMEDIA_LINK
+            NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+            SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
+            MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
     class INDIVIDUAL_RECORD(LINEAGE_LINKED_RECORD, Substructure):
         class INDI(XREF_INDI, Pointer, Substructure):
-            PERSONAL_NAME_STRUCTURE = PERSONAL_NAME_STRUCTURE
+            PERSONAL_NAME_STRUCTUREs = Iterable[PERSONAL_NAME_STRUCTURE]
 
             class SEX(SEX_VALUE, Substructure):
                 pass
 
-            INDIVIDUAL_EVENT_STRUCTURE = INDIVIDUAL_EVENT_STRUCTUREs
-            INDIVIDUAL_ATTRIBUTE_STRUCTURE = INDIVIDUAL_ATTRIBUTE_STRUCTUREs
-            CHILD_TO_FAMILY_LINK = CHILD_TO_FAMILY_LINK
-            SPOUSE_TO_FAMILY_LINK = SPOUSE_TO_FAMILY_LINK
-            ASSOCIATION_STRUCTURE = ASSOCIATION_STRUCTURE
+            INDIVIDUAL_EVENT_STRUCTUREs = Iterable[INDIVIDUAL_EVENT_STRUCTUREs.INDIVIDUAL_EVENT_STRUCTURE]
+            INDIVIDUAL_ATTRIBUTE_STRUCTUREs = Iterable[INDIVIDUAL_ATTRIBUTE_STRUCTUREs.INDIVIDUAL_ATTRIBUTE_STRUCTURE]
+            CHILD_TO_FAMILY_LINKs = Iterable[CHILD_TO_FAMILY_LINK]
+            SPOUSE_TO_FAMILY_LINKs = Iterable[SPOUSE_TO_FAMILY_LINK]
+            ASSOCIATION_STRUCTUREs = Iterable[ASSOCIATION_STRUCTURE]
 
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                class TYPE(USER_REFERENCE_TYPE, Substructure):
-                    pass
+            REFNs = Iterable[REFN]
 
             class RIN(AUTOMATED_RECORD_ID, Substructure):
                 pass
 
             CHANGE_DATE = CHANGE_DATE
-            NOTE_STRUCTURE = NOTE_STRUCTURE
-            SOURCE_CITATION = SOURCE_CITATION
-            MULTIMEDIA_LINK = MULTIMEDIA_LINK
+            NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+            SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
+            MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
     class MULTIMEDIA_RECORD(LINEAGE_LINKED_RECORD, Substructure):
         class OBJE(XREF_OBJE, Pointer, Substructure):
@@ -1007,27 +1018,25 @@ class LINEAGE_LINKED_RECORDs(Substructure):
                 class TITL(DESCRIPTIVE_TITLE, Substructure):
                     pass
 
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                class TYPE(USER_REFERENCE_TYPE, Substructure):
-                    pass
+            FILEs = Iterable[FILE]
+
+            REFNs = Iterable[REFN]
 
             class RIN(AUTOMATED_RECORD_ID, Substructure):
                 pass
 
-            NOTE_STRUCTURE = NOTE_STRUCTURE
-            SOURCE_CITATION = SOURCE_CITATION
+            NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+            SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             CHANGE_DATE = CHANGE_DATE
 
     class NOTE_RECORD(LINEAGE_LINKED_RECORD, Substructure):
         class NOTE(XREF_NOTE, USER_TEXT, Pointer, Substructure):
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                class TYPE(USER_REFERENCE_TYPE, Substructure):
-                    pass
+            REFNs = Iterable[REFN]
 
             class RIN(AUTOMATED_RECORD_ID, Substructure):
                 pass
 
-            SOURCE_CITATION = SOURCE_CITATION
+            SOURCE_CITATIONs = Iterable[SOURCE_CITATION]
             CHANGE_DATE = CHANGE_DATE
 
     class REPOSITORY_RECORD(LINEAGE_LINKED_RECORD, Substructure):
@@ -1036,11 +1045,8 @@ class LINEAGE_LINKED_RECORDs(Substructure):
                 pass
 
             ADDRESS_STRUCTURE = ADDRESS_STRUCTURE
-            NOTE_STRUCTURE = NOTE_STRUCTURE
-
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                class TYPE(USER_REFERENCE_TYPE, Substructure):
-                    pass
+            NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+            REFNs = Iterable[REFN]
 
             class RIN(AUTOMATED_RECORD_ID, Substructure):
                 pass
@@ -1057,10 +1063,12 @@ class LINEAGE_LINKED_RECORDs(Substructure):
                     class PLAC(SOURCE_JURISDICTION_PLACE, Substructure):
                         pass
 
+                EVENs = Iterable[EVEN]
+
                 class AGNC(RESPONSIBLE_AGENCY, Substructure):
                     pass
 
-                NOTE_STRUCTURE = NOTE_STRUCTURE
+                NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
 
             class AUTH(SOURCE_ORIGINATOR, Substructure):
                 pass
@@ -1077,18 +1085,16 @@ class LINEAGE_LINKED_RECORDs(Substructure):
             class TEXT(TEXT_FROM_SOURCE, Substructure):
                 pass
 
-            SOURCE_REPOSITORY_CITATION = SOURCE_REPOSITORY_CITATION
+            SOURCE_REPOSITORY_CITATIONs = Iterable[SOURCE_REPOSITORY_CITATION]
 
-            class REFN(USER_REFERENCE_NUMBER, Substructure):
-                class TYPE(USER_REFERENCE_TYPE, Substructure):
-                    pass
+            REFNs = Iterable[REFN]
 
             class RIN(AUTOMATED_RECORD_ID, Substructure):
                 pass
 
             CHANGE_DATE = CHANGE_DATE
-            NOTE_STRUCTURE = NOTE_STRUCTURE
-            MULTIMEDIA_LINK = MULTIMEDIA_LINK
+            NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
+            MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
 
 class GEDCOM_FORM_HEADER_EXTENSION(Substructure):
@@ -1113,24 +1119,24 @@ class GEDCOM_FORM_HEADER_EXTENSION(Substructure):
                 class COPR(COPYRIGHT_SOURCE_DATA, Substructure):
                     pass
 
-    class DATE(FILE_CREATION_DATE, Substructure):
-        class TIME(TIME_VALUE, Substructure):
+        class DATE(FILE_CREATION_DATE, Substructure):
+            class TIME(TIME_VALUE, Substructure):
+                pass
+
+        class LANG(LANGUAGE_OF_TEXT, Substructure):
             pass
 
-    class LANG(LANGUAGE_OF_TEXT, Substructure):
-        pass
+        class SUBM(XREF_SUBM, Substructure):
+            pass
 
-    class SUBM(XREF_SUBM, Substructure):
-        pass
+        class FILE(GEDCOM_FILE_NAME, Substructure):
+            pass
 
-    class FILE(GEDCOM_FILE_NAME, Substructure):
-        pass
+        class COPR(COPYRIGHT_GEDCOM_FILE, Substructure):
+            pass
 
-    class COPR(COPYRIGHT_GEDCOM_FILE, Substructure):
-        pass
-
-    class NOTE(GEDCOM_CONTENT_DESCRIPTION, Substructure):
-        pass
+        class NOTE(GEDCOM_CONTENT_DESCRIPTION, Substructure):
+            pass
 
 
 class GEDCOM_HEADER(Substructure):
@@ -1153,12 +1159,12 @@ class SUBMITTER_RECORD(Substructure):
             pass
 
         ADDRESS_STRUCTURE = ADDRESS_STRUCTURE
-        MULTIMEDIA_LINK = MULTIMEDIA_LINK
+        MULTIMEDIA_LINKs = Iterable[MULTIMEDIA_LINK]
 
         class RIN(AUTOMATED_RECORD_ID, Substructure):
             pass
 
-        NOTE_STRUCTURE = NOTE_STRUCTURE
+        NOTE_STRUCTUREs = Iterable[NOTE_STRUCTURE]
         CHANGE_DATE = CHANGE_DATE
 
 
@@ -1167,11 +1173,15 @@ class GEDCOM_TRAILER(Substructure):
         pass
 
 
+class FORM_RECORDS(Substructure):
+    SUBMITTER_RECORD = SUBMITTER_RECORD
+    LINEAGE_LINKED_RECORDs = Iterable[LINEAGE_LINKED_RECORDs.LINEAGE_LINKED_RECORD]
+
+
 class LINEAGE_LINKED_GEDCOM_FILE(Substructure):
     GEDCOM_HEADER = GEDCOM_HEADER
     GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSION
-    SUBMITTER_RECORD = SUBMITTER_RECORD
-    LINEAGE_LINKED_RECORD = LINEAGE_LINKED_RECORDs
+    FORM_RECORDS = FORM_RECORDS
     GEDCOM_TRAILER = GEDCOM_TRAILER
 
 
