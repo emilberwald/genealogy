@@ -77,7 +77,11 @@ class Meta(type):
         return super().__call__(*args, **kwargs)
 
 
-class XREF_ID:
+class Common(metaclass=Meta):
+    pass
+
+
+class XREF_ID(Common):
     def __init__(self, identifier=None):
         if isinstance(identifier, uuid.UUID):
             self.id = str(identifier).replace("-", "")[0:20]
@@ -130,7 +134,7 @@ class GEDCOM_LINE:
         )
 
 
-class Primitive:
+class Primitive(Common):
     def __init__(self, *args, **kwargs):
         self.value = str()
         for arg in args:
@@ -243,19 +247,19 @@ class GEDCOM_LINES:
         return "".join([str(line(level)) for line in self.lines])
 
 
-class Tag:
+class Tag(Common):
     pass
 
 
-class Pointer:
+class Pointer(Common):
     pass
 
 
-class Option:
+class Option(Common):
     pass
 
 
-class Substructure(object):
+class Substructure(Common):
     @classmethod
     def nested_classes(cls, *queries):
         inners = []
@@ -270,8 +274,9 @@ class Substructure(object):
         for attrname in dir(self):
             attr = getattr(self, attrname)
             if isinstance(attr, Iterable):
-                if any(isinstance(subattr, innercls) for subattr in attr for innercls in queries):
-                    inners.append(attr)
+                for subattr in attr:
+                    if any(isinstance(subattr, innercls) for innercls in queries):
+                        inners.append(subattr)
             elif not isinstance(attr, type) and any(
                 isinstance(attr, innercls) for innercls in queries if innercls is not Iterable
             ):
@@ -283,14 +288,8 @@ class Substructure(object):
         if isinstance(nested, Primitive):
             if isinstance(nested, base):
                 yield nested
-            else:
-                raise ValueError(f"do not understand what to do with this one! nested={nested} base={base}")
         else:
-            yield from (
-                attribute
-                for attribute in (getattr(nested, attr) for attr in dir(nested))
-                if isinstance(attribute, base)
-            )
+            yield from (getattr(nested, attr) for attr in dir(nested) if isinstance(getattr(nested, attr), base))
 
     def itersource(self):
         file = inspect.getsourcefile(self.__class__)
@@ -318,57 +317,85 @@ class Substructure(object):
         best = max(alternatives, key=lambda alternative, nesteds=nesteds: score(alternative, nesteds))
         return best
 
-    def get_level(self, nested=None, delta_level=0, is_iteration_included=False, is_reference_included=False):
-        if nested:
-            selfparts = self.__class__.__qualname__.split(".")
-            nestparts = nested.__class__.__qualname__.split(".")
-            suffixparts = [
-                part
-                for part in nested.__class__.__qualname__.replace(self.__class__.__qualname__, "").split(".")
-                if part
-            ]
-            level = len(suffixparts)
-            print(f"<({selfparts}:{nestparts})->{suffixparts}:level={level}>")
-        else:
-            selfparts = self.__class__.__qualname__.split(".")
-            nestparts = []
-            suffixparts = [self.__class__.__name__]
-            level = len(suffixparts)
-            print(f"<({selfparts}:{nestparts})->{suffixparts}:level={level}>")
-        if selfparts and (
-            len(selfparts) == 2
-            and len(nestparts) == 0
-            and len(suffixparts) == 1
-            and (selfparts[0].endswith("GEDCOM_FILE") or selfparts[0].endswith("GEDCOM_TRAILER"))
-        ):
-            level -= 1
-            print(f"<({selfparts}:{nestparts})->{suffixparts}:special:level--:{level}>")
-        # if is_iteration_included:
-        #     level += 1
-        #     print(f"<({selfparts}:{nestparts})->{suffixparts}:is_iteration_included:level++:{level}>")
-        if is_reference_included:
-            level += 1
-            print(f"<({selfparts}:{nestparts})->{suffixparts}:is_reference_included:level++:{level}>")
-        if selfparts and selfparts[0].endswith("s"):
-            level -= 1
-            print(f"<({selfparts}:{nestparts})->{suffixparts}:special_suffix:level--:{level}>")
-        print(
-            f"<({selfparts}:{nestparts})->{suffixparts}:level + delta_level = {level} + {delta_level} = {level + delta_level}>"
-        )
-        return level + delta_level
+    @staticmethod
+    def _is_reference_included(nested):
+        for base in nested.__class__.__bases__:
+            yield fr"{base.__name__}s\s*="
+            yield fr"=\s*{base.__class__.__name__}"
+            yield fr"=\s*Iterable\[{base.__class__.__name__}s[.]{base.__class__.__name__}\]"
+        yield fr"{nested.__class__.__name__}\s*="
+        yield fr"{nested.__class__.__name__}s\s*="
+        yield fr"=\s*{nested.__class__.__name__}"
+        yield fr"=\s*{nested.__class__.__qualname__}"
+        yield fr"=\s*Iterable\[{nested.__class__.__name__}\]"
+        yield fr"=\s*Iterable\[{nested.__class__.__qualname__}\]"
 
-    def __call__(self, lines: GEDCOM_LINES, delta_level=0):
+    def handle_nested(self, *, lines: GEDCOM_LINES, nested: Union[Primitive, "Substructure"], delta_level: int):
+        if hasattr(nested, "delta_level") and getattr(nested, "delta_level"):
+            nested_level = delta_level + getattr(nested, "delta_level")
+            print(
+                f"![{nested_level}\t{nested.__class__.__qualname__} <= {delta_level:+d} {getattr(nested, 'delta_level'):+d}]"
+            )
+        else:
+            nested_level = delta_level
+
+        tag = nested.__class__.__name__
+        bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
+        xrefs: List[XREF_ID] = list()
+        tag_with_value = False
+        primitives: List[Primitive] = list()
+        substructures: List[Substructure] = list()
+        for base in bases:
+            if issubclass(base, Primitive) and isinstance(nested, base):
+                tag_with_value = True
+                print(f"<is-tag-with-value-for-{base}:{nested}>")
+                continue
+            if isinstance(nested, base):
+                print(f"<skip-self-{base}:{nested}>")
+                continue
+            if isinstance(nested, Pointer) and issubclass(base, XREF_ID):
+                found = list(Substructure.find_stuff(nested, base))
+                print(f"<xrefs-for-{base}:{found}>")
+                xrefs.extend(found)
+            if issubclass(base, Primitive):
+                found = list(Substructure.find_stuff(nested, base))
+                print(f"<primitives-for-{base}:{found}>")
+                primitives.extend(found)
+            if issubclass(base, Substructure):
+                found = list(Substructure.find_stuff(nested, base))
+                print(f"<substructures-for-{base}:{found}>")
+                substructures.extend(found)
+        if tag_with_value and isinstance(nested, Primitive):
+            if str(nested):
+                print(f"<tag-with-value>")
+                lines.add_primitives(nested_level, tag, nested)
+            else:
+                print(f"<tag-with-value-without-value>")
+                lines.add_primitives(nested_level, tag)
+        if xrefs:
+            print(f"<xrefs>")
+            for xref in (xref for xref in xrefs if xref is not None):
+                lines.add_primitives(nested_level, tag, xref_id=xref if xref else None)
+        if primitives:
+            print(f"<primitives>")
+            lines.add_primitives(nested_level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
+        if substructures:
+            print(f"<substructures>")
+            lines.add_substructures(nested_level, *substructures)
+        try:
+            if isinstance(nested, Substructure):
+                print(f"<nested:call@{delta_level}>")
+                nested(lines=lines, delta_level=delta_level)
+            else:
+                print(f"<nested:skip>")
+        except Exception as e:
+            print(f"<nested:except:{e}>")
+
+    def __call__(self, *, lines: GEDCOM_LINES, delta_level=0):
         print(f"\n[{delta_level}\t{self.__class__.__qualname__}]")
-        if (
-            self.__class__.__qualname__.count(".") == 1
-            and "GEDCOM_FILE" in self.__class__.__qualname__
-            or "GEDCOM_TRAILER" in self.__class__.__qualname__
-        ):
-            delta_level = 0
-            print(f"![{delta_level}\t{self.__class__.__qualname__}]")
-        # elif isinstance(self, Option):
-        #     delta_level -= 1
-        #     print(f"![{delta_level}\t{self.__class__.__qualname__}]")
+        if hasattr(self, "delta_level") and getattr(self, "delta_level"):
+            delta_level = delta_level + getattr(self, "delta_level")
+            print(f"![{delta_level}\t{self.__class__.__qualname__} => {getattr(self, 'delta_level'):+d}]")
 
         if isinstance(self, Tag):
             print(f"<Tag>")
@@ -389,87 +416,36 @@ class Substructure(object):
             key=lambda nested, clssource=clssource: result.start()
             if (
                 result := re.search(
-                    fr"class\s+{nested.__class__.__name__}"
-                    fr"|{nested.__class__.__name__}\s*="
-                    fr"|=\s*{nested.__class__.__name__}"
-                    fr"|=\s*{nested.__class__.__qualname__}"
-                    fr"|=\s*Iterable\[{nested.__class__.__name__}\]"
-                    fr"|=\s*Iterable\[{nested.__class__.__qualname__}\]",
+                    r"|".join(
+                        (fr"class\s+{nested.__class__.__name__}", *Substructure._is_reference_included(nested=nested))
+                    ),
                     clssource,
                 )
             )
             else float("inf"),
         )
-        print(f"<nesteds:{nesteds}>")
+        print(f"<nesteds:{nesteds}>\n{'*'*80}\n{clssource}\n{'*'*80}\n")
         for nested in nesteds:
-            print(f"<nested:{nested}>")
+
+            print(f"<nested:{nested.__class__.__qualname__}:{nested}>")
             is_iteration_included = isinstance(nested, Iterable)
-            is_reference_included = re.search(
-                fr"{nested.__class__.__name__}\s*="
-                fr"|=\s*{nested.__class__.__name__}"
-                fr"|=\s*{nested.__class__.__qualname__}",
-                clssource,
-            )
-            nested_level = self.get_level(
-                nested,
-                delta_level=delta_level,
-                is_iteration_included=is_iteration_included,
-                is_reference_included=is_reference_included,
-            )
+            is_reference_included = re.search(r"|".join(Substructure._is_reference_included(nested=nested)), clssource)
+
             if is_iteration_included:
                 print("<is_iteration_included>")
                 for subnested in nested:
-                    print("<subnested>")
-                    subnested(lines, delta_level=nested_level)
+                    print(f"<subnested:handle_nested@+1:{delta_level+1}>")
+                    self.handle_nested(lines=lines, nested=subnested, delta_level=delta_level + 1)
+            elif is_reference_included:
+                if isinstance(nested, Substructure):
+                    print(f"<is_reference_included:handle_nested@+1:{delta_level+1}>")
+                    self.handle_nested(lines=lines, nested=nested, delta_level=delta_level + 1)
+                else:
+                    print(f"<is_reference_included:skip:{nested}>")
             else:
-                print("<else>")
-                tag = nested.__class__.__name__
-                bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
-                xrefs: List[XREF_ID] = list()
-                primitives: List[Primitive] = list()
-                substructures: List[Substructure] = list()
-                for base in bases:
-                    if isinstance(nested, Pointer) and issubclass(base, XREF_ID):
-                        xrefs.extend(Substructure.find_stuff(nested, base))
-                    if issubclass(base, Primitive):
-                        primitives.extend(Substructure.find_stuff(nested, base))
-                    if issubclass(base, Substructure):
-                        substructures.extend(Substructure.find_stuff(nested, base))
-                if xrefs:
-                    print(f"<xrefs>")
-                    for xref in (xref for xref in xrefs if xref is not None):
-                        lines.add_primitives(nested_level, tag, xref_id=xref if xref else None)
-                if primitives:
-                    print(f"<primitives>")
-                    lines.add_primitives(nested_level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
-                if substructures:
-                    print(f"<substructures>")
-                    lines.add_substructures(nested_level, *substructures)
-                try:
-                    if is_iteration_included or is_reference_included:
-                        print(f"<call:use delta>")
-                        nested(lines, delta_level=delta_level)
-                    else:
-                        print(f"<call>")
-                        nested(lines, delta_level=nested_level)
-                except Exception as e:
-                    try:
-                        if isinstance(nested, Tag):
-                            print(f"<except:Tag:{e}>")
-                            pass
-                        elif isinstance(nested, XREF_ID):
-                            print(f"<except:XREF_ID:{e}>")
-                            pass
-                        else:
-                            if is_iteration_included or is_reference_included:
-                                print(f"<except:use delta:{e}>")
-                                lines.add_primitives(delta_level, tag, xref_id=xrefs[0] if xrefs else None)
-                            else:
-                                print(f"<except:{e}>")
-                                lines.add_primitives(nested_level, tag, xref_id=xrefs[0] if xrefs else None)
-                    except Exception as ee:
-                        print(f"<except-except:{ee}>")
-                        pass
+                print(f"<else:handle_nested@{delta_level}>")
+                self.handle_nested(lines=lines, nested=nested, delta_level=delta_level)
+
         return lines
 
 
