@@ -163,7 +163,7 @@ class CHANGE_DATE(Substructure, delta_level=0):
 
 
 class TEXTs(Substructure):
-    class TEXT(TEXT_FROM_SOURCE, Option, Substructure, delta_level=1):
+    class TEXT(TEXT_FROM_SOURCE, Option, Substructure, delta_level=0):
         pass
 
 
@@ -582,6 +582,7 @@ class SOURCE_REPOSITORY_CITATION(Substructure, delta_level=0):
     class REPO(XREF_REPO, Substructure, delta_level=0):
         class CALN(SOURCE_CALL_NUMBER, Substructure, delta_level=1):
             class MEDI(SOURCE_MEDIA_TYPE, Substructure, delta_level=1):
+                """deprecated"""
                 pass
 
 

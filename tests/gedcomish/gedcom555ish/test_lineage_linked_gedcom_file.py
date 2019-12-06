@@ -3,8 +3,9 @@ import tempfile
 import contextlib
 import inspect
 from typing import List
+import datetime
 
-from gedcomish.common import GEDCOM_LINES, NULL
+from gedcomish.common import GEDCOM_LINES, NULL, get_gedcom_date
 
 from gedcomish.gedcom555ish.primitives import *
 
@@ -328,7 +329,9 @@ class TestExampleFiles:
         even.PLAC = LINEAGE_LINKED_RECORDs.EVENs.EVEN.PLAC("Madison, Connecticut, United States of America")
         sour.SOUR.DATA.EVENs.append(even)
 
-        sour.SOUR.DATA.AGNC = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.DATA.AGNC(RESPONSIBLE_AGENCY("Madison County Court"))
+        sour.SOUR.DATA.AGNC = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.DATA.AGNC(
+            RESPONSIBLE_AGENCY("Madison County Court")
+        )
         sour.SOUR.TITL = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.TITL(
             "Madison County Birth, Death, and Marriage Records"
         )
@@ -387,15 +390,15 @@ def _address_structure():
     sure = ADDRESS_STRUCTURE()
     sure.ADDR = ADDRESS_STRUCTURE.ADDR()
     sure.ADDR.ADR1 = ADDRESS_STRUCTURE.ADDR.ADR1("ADDRESS_LINE_1")
-    sure.ADDR.ADR2 = ADDRESS_STRUCTURE.ADDR.ADR1("ADDRESS_LINE_2")
-    sure.ADDR.ADR3 = ADDRESS_STRUCTURE.ADDR.ADR1("ADDRESS_LINE_3")
+    sure.ADDR.ADR2 = ADDRESS_STRUCTURE.ADDR.ADR2("ADDRESS_LINE_2")
+    sure.ADDR.ADR3 = ADDRESS_STRUCTURE.ADDR.ADR3("ADDRESS_LINE_3")
     sure.ADDR.CITY = ADDRESS_STRUCTURE.ADDR.CITY("ADDRESS_CITY")
     sure.ADDR.STAE = ADDRESS_STRUCTURE.ADDR.STAE("ADDRESS_STATE")
-    sure.ADDR.POST = ADDRESS_STRUCTURE.ADDR.POST("ADDRESS_POSTAL_CODE")
+    sure.ADDR.POST = ADDRESS_STRUCTURE.ADDR.POST("POST_CODE")
     sure.ADDR.CTRY = ADDRESS_STRUCTURE.ADDR.CTRY("ADDRESS_COUNTRY")
     sure.PHONs = 3 * [ADDRESS_STRUCTURE.PHON("PHONE_NUMBER")]
     sure.EMAILs = 3 * [ADDRESS_STRUCTURE.EMAIL("local-part@domain")]
-    sure.FAXs = 3 * [ADDRESS_STRUCTURE.FAX("FAX")]
+    sure.FAXs = 3 * [ADDRESS_STRUCTURE.FAX("ADDRESS_FAX")]
     sure.WWWs = 3 * [ADDRESS_STRUCTURE.WWW("scheme://userinfo@host:portpath?query#fragment")]
     return sure
 
@@ -424,7 +427,7 @@ def _multimedia_link():
 
 def _note_structure_user_text():
     sure = NOTE_STRUCTUREs.NOTE_STRUCTURE_USER_TEXT()
-    sure.NOTE = NOTE_STRUCTUREs.NOTE_STRUCTURE_USER_TEXT.NOTE("USER_TEXT")
+    sure.NOTE = NOTE_STRUCTUREs.NOTE_STRUCTURE_USER_TEXT.NOTE(USER_TEXT("USER_TEXT"))
     return sure
 
 
@@ -437,8 +440,8 @@ def _note_structure_xref_note():
 def _change_date(M: int):
     sure = CHANGE_DATE()
     sure.CHAN = CHANGE_DATE.CHAN()
-    sure.CHAN.DATE = CHANGE_DATE.CHAN.DATE("DATE_EXACT")
-    sure.CHAN.DATE.TIME = CHANGE_DATE.CHAN.DATE.TIME("TIME_VALUE")
+    sure.CHAN.DATE = CHANGE_DATE.CHAN.DATE(datetime.datetime.now())
+    sure.CHAN.DATE.TIME = CHANGE_DATE.CHAN.DATE.TIME(datetime.datetime.now())
     sure.CHAN.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
     return sure
 
@@ -446,7 +449,7 @@ def _change_date(M: int):
 def _event_detail(M: int):
     sure = EVENT_DETAIL()
     sure.TYPE = EVENT_DETAIL.TYPE("EVENT_OR_FACT_CLASSIFICATION")
-    sure.DATE = EVENT_DETAIL.DATE("DATE_VALUE")
+    sure.DATE = EVENT_DETAIL.DATE(datetime.datetime.now())
     sure.PLACE_STRUCTURE = _place_structure(M)
     sure.ADDRESS_STRUCTURE = _address_structure()
     sure.AGNC = EVENT_DETAIL.AGNC("RESPONSIBLE_AGENCY")
@@ -512,7 +515,7 @@ def _family_event_structures(M: int):
 
 
 def _refn():
-    sure = REFN("USER_REFERENCE_NUMBER")
+    sure = REFN("USER_REFNO")
     sure.TYPE = REFN.TYPE("USER_REFERENCE_TYPE")
     return sure
 
@@ -524,11 +527,11 @@ def _source_citation(M: int):
     sure.SOUR.EVEN = SOURCE_CITATION.SOUR.EVEN("EVENT_TYPE_CITED_FROM")
     sure.SOUR.EVEN.ROLE = SOURCE_CITATION.SOUR.EVEN.ROLE("ROLE_IN_EVENT")
     sure.SOUR.DATA = SOURCE_CITATION.SOUR.DATA()
-    sure.SOUR.DATA.DATE = SOURCE_CITATION.SOUR.DATA.DATE("ENTRY_RECODING_DATE")
+    sure.SOUR.DATA.DATE = SOURCE_CITATION.SOUR.DATA.DATE(datetime.datetime.now())
     sure.SOUR.DATA.TEXTs = M * [TEXTs.TEXT("TEXT_FROM_SOURCE")]
     sure.SOUR.MULTIMEDIA_LINKs = M * [_multimedia_link()]
     sure.SOUR.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
-    sure.SOUR.QUAY = SOURCE_CITATION.SOUR.QUAY("CERTAINTY_ASSESSMENT")
+    sure.SOUR.QUAY = SOURCE_CITATION.SOUR.QUAY(CERTAINTY_ASSESSMENT.QUESTIONABLE_RELIABILITY_OF_EVIDENCE)
     return sure
 
 
@@ -742,7 +745,7 @@ def _association_structure(M: int):
 
 def _even():
     sure = EVENs.EVEN("EVENTS_RECORDED")
-    sure.DATE = EVENs.EVEN.DATE("DATE_PERIOD")
+    sure.DATE = EVENs.EVEN.DATE(FROM=datetime.datetime.now(), TO=datetime.datetime.now())
     sure.PLAC = EVENs.EVEN.PLAC("SOURCE_JURISDICTION_PLACE")
     return sure
 
@@ -751,7 +754,7 @@ def _source_repository_citation(M: int):
     sure = SOURCE_REPOSITORY_CITATION()
     sure.REPO = SOURCE_REPOSITORY_CITATION.REPO("XREF:REPO")
     sure.REPO.CALN = SOURCE_REPOSITORY_CITATION.REPO.CALN("SOURCE_CALL_NUMBER")
-    sure.REPO.CALN.MEDI = SOURCE_REPOSITORY_CITATION.REPO.CALN.MEDI("SOURCE_MEDIA_TYPE")
+    # sure.REPO.CALN.MEDI = SOURCE_REPOSITORY_CITATION.REPO.CALN.MEDI("SOURCE_MEDIA_TYPE")
     return sure
 
 
@@ -777,7 +780,7 @@ class TestGenerateFull:
             "SOURCE_SYSTEM_ID"
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.VERS = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.VERS(
-            "PRODUCT_VERSION_NUMBER"
+            "0.0.0.0"
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.NAME = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.NAME(
             "NAME_OF_PRODUCT"
@@ -791,16 +794,16 @@ class TestGenerateFull:
             "NAME_OF_SOURCE_DATA"
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.DATA.DATE = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.DATA.DATE(
-            "PUBLICATION_DATE"
+            datetime.datetime.now()
         )
-        ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.DATA.COPR = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.DATA.DATE(
+        ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.DATA.COPR = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.DATA.COPR(
             "COPYRIGHT_SOURCE_DATA"
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.DATE = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE(
-            "FILE_CREATION_DATE"
+            datetime.datetime.now()
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.DATE.TIME = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE.TIME(
-            "TIME_VALUE"
+            datetime.datetime.now()
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.LANG = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.LANG(
             "LANGUAGE_OF_TEXT"
@@ -824,7 +827,7 @@ class TestGenerateFull:
         ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.NAME = SUBMITTER_RECORD.SUBM.NAME("SUBMITTER_NAME")
         ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.ADDRESS_STRUCTURE = _address_structure()
         ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.MULTIMEDIA_LINKs = M * [_multimedia_link()]
-        ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.RIN = SUBMITTER_RECORD.SUBM.RIN("AUTOMATED_RECORD_ID")
+        ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.RIN = SUBMITTER_RECORD.SUBM.RIN("AUTOMATED_ID")
         ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.NOTE_STRUCTUREs = M * [
             _note_structure_user_text(),
             _note_structure_xref_note(),
@@ -863,7 +866,7 @@ class TestGenerateFull:
         indi.INDI.SPOUSE_TO_FAMILY_LINKs = M * [_spouse_to_family_link(M)]
         indi.INDI.ASSOCIATION_STRUCTUREs = M * [_association_structure(M)]
         indi.INDI.REFNs = M * [_refn()]
-        indi.INDI.RIN = LINEAGE_LINKED_RECORDs.INDIVIDUAL_RECORD.INDI.RIN("AUTOMATED_RECORD_ID")
+        indi.INDI.RIN = LINEAGE_LINKED_RECORDs.INDIVIDUAL_RECORD.INDI.RIN("AUTOMATED_ID")
         indi.INDI.CHANGE_DATE = _change_date(M)
         indi.INDI.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
         indi.INDI.SOURCE_CITATIONs = M * [_source_citation(M)]
@@ -875,22 +878,34 @@ class TestGenerateFull:
         obje = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD()
         obje.OBJE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE("XREF:OBJE")
         obje.OBJE.FILE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE("MULTIMEDIA_FILE_REFERENCE")
-        obje.OBJE.FILE.FORM = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.FORM("MULTIMEDIA_FORMAT")
+        obje.OBJE.FILE.FORM = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.FORM("JPEG")
         obje.OBJE.FILE.FORM.TYPE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.FORM.TYPE("SOURCE_MEDIA_TYPE")
         obje.OBJE.FILE.TITL = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.TITL("DESCRIPTIVE_TITLE")
         obje.OBJE.REFNs = M * [_refn()]
-        obje.OBJE.RIN = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.RIN("AUTOMATED_RECORD_ID")
+        obje.OBJE.RIN = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.RIN("AUTOMATED_ID")
         obje.OBJE.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
         obje.OBJE.SOURCE_CITATIONs = M * [_source_citation(M)]
         obje.OBJE.CHANGE_DATE = _change_date(M)
-        ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(M * [obje])
+        ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.append(obje)
+        obje = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD()
+        obje.OBJE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE("XREF:OBJE:TIFF")
+        obje.OBJE.FILE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE("MULTIMEDIA_FILE_REFERENCE")
+        obje.OBJE.FILE.FORM = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.FORM("TIFF")
+        obje.OBJE.FILE.FORM.TYPE = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.FORM.TYPE("SOURCE_MEDIA_TYPE")
+        obje.OBJE.FILE.TITL = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.FILE.TITL("DESCRIPTIVE_TITLE")
+        obje.OBJE.REFNs = M * [_refn()]
+        obje.OBJE.RIN = LINEAGE_LINKED_RECORDs.MULTIMEDIA_RECORD.OBJE.RIN("AUTOMATED_ID")
+        obje.OBJE.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
+        obje.OBJE.SOURCE_CITATIONs = M * [_source_citation(M)]
+        obje.OBJE.CHANGE_DATE = _change_date(M)
+        ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.append(obje)
         ########################################################################
         # <<NOTE_RECORD>>
         ########################################################################
         note = LINEAGE_LINKED_RECORDs.NOTE_RECORD()
-        note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(XREF_NOTE("XREF:NOTE"))
+        note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(XREF_NOTE("XREF:NOTE"), USER_TEXT("USER_TEXT"))
         note.NOTE.REFNs = M * [_refn()]
-        note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_RECORD_ID")
+        note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_ID")
         note.NOTE.SOURCE_CITATIONs = M * [_source_citation(M)]
         note.NOTE.CHANGE_DATE = _change_date(M)
         ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(M * [note])
@@ -898,7 +913,7 @@ class TestGenerateFull:
         note = LINEAGE_LINKED_RECORDs.NOTE_RECORD()
         note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(USER_TEXT("USER_TEXT"))
         note.NOTE.REFNs = M * [_refn()]
-        note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_RECORD_ID")
+        note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_ID")
         note.NOTE.SOURCE_CITATIONs = M * [_source_citation(M)]
         note.NOTE.CHANGE_DATE = _change_date(M)
         ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(M * [note])
@@ -911,7 +926,7 @@ class TestGenerateFull:
         repo.REPO.ADDRESS_STRUCTURE = _address_structure()
         repo.REPO.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
         repo.REPO.REFNs = M * [_refn()]
-        repo.REPO.RIN = LINEAGE_LINKED_RECORDs.REPOSITORY_RECORD.REPO.RIN("AUTOMATED_RECORD_ID")
+        repo.REPO.RIN = LINEAGE_LINKED_RECORDs.REPOSITORY_RECORD.REPO.RIN("AUTOMATED_ID")
         repo.REPO.CHANGE_DATE = _change_date(M)
         ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(M * [repo])
         ########################################################################
@@ -930,7 +945,7 @@ class TestGenerateFull:
         sour.SOUR.TEXT = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.TEXT("TEXT_FROM_SOURCE")
         sour.SOUR.SOURCE_REPOSITORY_CITATIONs = M * [_source_repository_citation(M)]
         sour.SOUR.REFNs = M * [_refn()]
-        sour.SOUR.RIN = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.RIN("AUTOMATED_RECORD_ID")
+        sour.SOUR.RIN = LINEAGE_LINKED_RECORDs.SOURCE_RECORD.SOUR.RIN("AUTOMATED_ID")
         sour.SOUR.CHANGE_DATE = _change_date(M)
         sour.SOUR.NOTE_STRUCTUREs = M * [_note_structure_user_text(), _note_structure_xref_note()]
         sour.SOUR.MULTIMEDIA_LINKs = M * [_multimedia_link()]

@@ -401,12 +401,18 @@ class Substructure(Common):
                                 blacklist.append(arg)
                                 continue
                             elif isinstance(arg, str) and issubclass(base, Primitive):
-                                print(f"<tag-value-for-{nested}:{arg}>")
+                                print(f"<tag-str-value-for-{nested}:{arg}>")
                                 tag_value = base(arg)
                                 blacklist.append(arg)
                                 continue
-                print(f"<tag-no-value-found>")
-                continue
+                            elif not isinstance(arg, Common):
+                                print(f"<tag-unknown-value-for-{nested}:{arg}>")
+                                tag_value = base(arg)
+                                blacklist.append(arg)
+                                continue
+                if isinstance(nested, Substructure):
+                    print(f"<tag-no-value-found>")
+                    continue
             if issubclass(base, Primitive):
                 found = list(Substructure.find_stuff(nested, base))
                 print(f"<primitives-for-{base}:{found}>")
@@ -520,8 +526,11 @@ def try_strptime(date_phrase: str):
     return None
 
 
-def get_gedcom_date(date_phrase: str):
-    interpreted_date = try_strptime(date_phrase)
+def get_gedcom_date(date: Union[str, datetime.datetime]):
+    if isinstance(date, datetime.datetime):
+        interpreted_date = date
+    else:
+        interpreted_date = try_strptime(date)
     if interpreted_date:
         return " ".join(
             [
@@ -529,8 +538,8 @@ def get_gedcom_date(date_phrase: str):
                 str(interpreted_date.day),
                 get_month(interpreted_date),
                 str(interpreted_date.year),
-                "".join(["(", date_phrase, ")"]),
+                "".join(["(", str(date), ")"]),
             ]
         )
     else:
-        return "".join(["(", date_phrase, ")"])
+        return "".join(["(", str(date), ")"])

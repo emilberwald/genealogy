@@ -1,4 +1,8 @@
-from ..common import XREF_ID, Primitive, get_gedcom_date
+import datetime
+from typing import Iterable
+from enum import Enum
+
+from ..common import XREF_ID, Primitive, get_gedcom_date, get_month
 
 
 class ADDRESS_CITY(Primitive, Size=(1, 60)):
@@ -74,7 +78,10 @@ class CAUSE_OF_EVENT(Primitive, Size=(1, 90)):
 
 
 class CERTAINTY_ASSESSMENT(Primitive, Size=(1, 1)):
-    pass
+    UNRELIABLE_EVIDENCE_OR_ESTIMATED_DATA = 0
+    QUESTIONABLE_RELIABILITY_OF_EVIDENCE = 1
+    SECONDARY_EVIDENCE = 2
+    DIRECT_AND_PRIMARY_EVIDENCE = 3
 
 
 class CHARACTER_ENCODING(Primitive, Size=(5, 7)):
@@ -106,7 +113,22 @@ class DATE_CALENDAR(Primitive, Size=(4, 35)):
 
 
 class DATE_EXACT(Primitive, Size=(10, 11)):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            args
+            and isinstance(args, Iterable)
+            and len(args) > 0
+            and isinstance(args[0], (datetime.date, datetime.datetime))
+        ):
+            self.date = args[0]
+
+    def __str__(self):
+        if hasattr(self, "date") and getattr(self, "date"):
+            return "\u0020".join(
+                (str(component) for component in (self.date.day, get_month(self.date), self.date.year))
+            )
+        return super().__str__()
 
 
 class DATE_FREN(Primitive, Size=(4, 35)):
@@ -126,7 +148,18 @@ class DATE_JULN(Primitive, Size=(4, 35)):
 
 
 class DATE_PERIOD(Primitive, Size=(7, 35)):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dates = {key: val for key, val in kwargs.items() if isinstance(val, datetime.datetime)}
+
+    def __str__(self):
+        if hasattr(self, "dates") and getattr(self, "dates"):
+            result = list()
+            for key, val in self.dates:
+                result.append(key)
+                result.append(val)
+            return "\u0020".join(result)
+        return super().__str__()
 
 
 class DATE_PHRASE(Primitive, Size=(1, 35)):
@@ -138,9 +171,20 @@ class DATE_RANGE(Primitive, Size=(8, 35)):
 
 
 class DATE_VALUE(Primitive, Size=(1, 35)):
-    @staticmethod
-    def date(date_phrase: str):
-        return get_gedcom_date(date_phrase)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            args
+            and isinstance(args, Iterable)
+            and len(args) > 0
+            and isinstance(args[0], (datetime.date, datetime.datetime))
+        ):
+            self.date = args[0]
+
+    def __str__(self):
+        if hasattr(self, "date") and getattr(self, "date"):
+            return get_gedcom_date(self.date)
+        return super().__str__()
 
 
 class DATE(Primitive, Size=(4, 35)):
@@ -163,7 +207,7 @@ class DUAL_STYLE_YEAR(Primitive, Size=(3, 7)):
     pass
 
 
-class ENTRY_RECORDING_DATE(Primitive, Size=(1, 90)):
+class ENTRY_RECORDING_DATE(DATE_VALUE, Size=(1, 90)):
     pass
 
 
@@ -195,7 +239,7 @@ class EVENTS_RECORDED(Primitive, Size=(1, 90)):
     pass
 
 
-class FILE_CREATION_DATE(Primitive, Size=(10, 11)):
+class FILE_CREATION_DATE(DATE_EXACT, Size=(10, 11)):
     pass
 
 
@@ -379,7 +423,7 @@ class PRODUCT_VERSION_NUMBER(Primitive, Size=(3, 15)):
     pass
 
 
-class PUBLICATION_DATE(Primitive, Size=(10, 11)):
+class PUBLICATION_DATE(DATE_EXACT, Size=(10, 11)):
     pass
 
 
@@ -464,7 +508,15 @@ class TEXT(Primitive, Size=(1, 32767)):
 
 
 class TIME_VALUE(Primitive, Size=(7, 12)):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if args and isinstance(args, Iterable) and len(args) > 0 and isinstance(args[0], (datetime.datetime)):
+            self.date = args[0]
+
+    def __str__(self):
+        if hasattr(self, "date") and getattr(self, "date"):
+            return self.date.strftime("%H:%M:%S.%f")[0:11]
+        return super().__str__()
 
 
 class USER_REFERENCE_NUMBER(Primitive, Size=(1, 20)):
@@ -510,11 +562,14 @@ class XREF_SOUR(XREF_ID, Size=(3, 22)):
 class XREF_SUBM(XREF_ID, Size=(3, 22)):
     pass
 
+
 class Y(Primitive, Size=(1, 1)):
     pass
 
+
 class YEAR(Primitive, Size=(3, 4)):
     pass
+
 
 __all__ = [
     "ADDRESS_CITY",
@@ -647,4 +702,3 @@ __all__ = [
     "Y",
     "YEAR",
 ]
-
