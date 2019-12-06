@@ -10,14 +10,17 @@ from enum import Enum
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 from contextlib import contextmanager
 
+
 @contextmanager
 def breaks():
     class NestedBreakException(Exception):
         pass
+
     try:
         yield NestedBreakException
     except NestedBreakException:
         pass
+
 
 class Meta(type):
     @classmethod
@@ -93,10 +96,12 @@ class Common(metaclass=Meta):
 
     def __str__(self):
         value = str()
-        for arg in self.args:
-            value += str(arg)
-        for kwarg in self.kwargs:
-            value += str(kwarg)
+        if hasattr(self, "args"):
+            for arg in self.args:
+                value += str(arg)
+        if hasattr(self, "kwargs"):
+            for kwarg in self.kwargs:
+                value += str(kwarg)
         return value
 
 
@@ -383,34 +388,42 @@ class Substructure(Common):
         for base in bases:
             if isinstance(nested, base):
                 if isinstance(nested, Common):
-                    for arg in nested.args:
-                        if arg not in blacklist:
-                            if isinstance(arg, base) and isinstance(arg, XREF_ID):
-                                print(f"<tag-xref-id-for-{nested}:[{base}]:{arg}>")
-                                tag_xref_id = arg
-                                blacklist.append(arg)
-                                continue
-                            elif isinstance(arg, str) and issubclass(base, XREF_ID):
-                                print(f"<tag-xref-id-for-{nested}:{arg}>")
-                                tag_xref_id = base(arg)
-                                blacklist.append(arg)
-                                continue
-                            elif isinstance(arg, base) and isinstance(arg, Primitive):
-                                print(f"<tag-value-for-{nested}:[{base}]:{arg}>")
-                                tag_value = arg
-                                blacklist.append(arg)
-                                continue
-                            elif isinstance(arg, str) and issubclass(base, Primitive):
-                                print(f"<tag-str-value-for-{nested}:{arg}>")
-                                tag_value = base(arg)
-                                blacklist.append(arg)
-                                continue
-                            elif not isinstance(arg, Common):
-                                print(f"<tag-unknown-value-for-{nested}:{arg}>")
-                                tag_value = base(arg)
-                                blacklist.append(arg)
-                                continue
-                if isinstance(nested, Substructure):
+                    if hasattr(nested, "args"):
+                        for arg in nested.args:
+                            if arg not in blacklist:
+                                if not tag_xref_id and isinstance(arg, base) and isinstance(arg, XREF_ID):
+                                    print(f"<tag-xref-id-for-{nested}:[{base}]:{arg}>")
+                                    tag_xref_id = arg
+                                    blacklist.append(arg)
+                                    continue
+                                elif not tag_xref_id and isinstance(arg, str) and issubclass(base, XREF_ID):
+                                    print(f"<tag-xref-id-for-{nested}:{arg}>")
+                                    tag_xref_id = base(arg)
+                                    blacklist.append(arg)
+                                    continue
+                                elif not tag_value and isinstance(arg, base) and isinstance(arg, Primitive):
+                                    print(f"<tag-value-for-{nested}:[{base}]:{arg}>")
+                                    tag_value = arg
+                                    blacklist.append(arg)
+                                    continue
+                                elif (
+                                    not tag_value and isinstance(arg, str) and str(arg) and issubclass(base, Primitive)
+                                ):
+                                    print(f"<tag-str-value-for-{nested}:{arg}>")
+                                    tag_value = base(arg)
+                                    blacklist.append(arg)
+                                    continue
+                                elif not tag_value and isinstance(arg, Common) and str(arg):
+                                    print(f"<tag-common-last-resort-value-for-{nested}:{arg}>")
+                                    tag_value = base(arg)
+                                    blacklist.append(arg)
+                                    continue
+                                elif not tag_value and not isinstance(arg, Common):
+                                    print(f"<tag-unknown-last-resort-value-for-{nested}:{arg}>")
+                                    tag_value = base(arg)
+                                    blacklist.append(arg)
+                                    continue
+
                     print(f"<tag-no-value-found>")
                     continue
             if issubclass(base, Primitive):

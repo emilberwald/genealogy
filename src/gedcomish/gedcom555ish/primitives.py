@@ -149,15 +149,15 @@ class DATE_JULN(Primitive, Size=(4, 35)):
 
 class DATE_PERIOD(Primitive, Size=(7, 35)):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.dates = {key: val for key, val in kwargs.items() if isinstance(val, datetime.datetime)}
+        super().__init__(*args, str(self), **kwargs)
 
     def __str__(self):
         if hasattr(self, "dates") and getattr(self, "dates"):
             result = list()
-            for key, val in self.dates:
+            for key, val in self.dates.items():
                 result.append(key)
-                result.append(val)
+                result.append(str(DATE(val)))
             return "\u0020".join(result)
         return super().__str__()
 
@@ -188,7 +188,20 @@ class DATE_VALUE(Primitive, Size=(1, 35)):
 
 
 class DATE(Primitive, Size=(4, 35)):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if (
+            args
+            and isinstance(args, Iterable)
+            and len(args) > 0
+            and isinstance(args[0], (datetime.date, datetime.datetime))
+        ):
+            self.date = args[0]
+
+    def __str__(self):
+        if hasattr(self, "date") and getattr(self, "date"):
+            return "\u0020".join((str(self.date.day), get_month(self.date), str(self.date.year)))
+        return super().__str__()
 
 
 class DAY(Primitive, Size=(1, 2)):
