@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from ..common import Option, Pointer, Substructure, Tag
+from ..common import Option, Pointer, Substructure, Tag, NULL
 
 from .primitives import (
     ADDRESS_CITY,
@@ -82,7 +82,6 @@ from .primitives import (
     NAME_TYPE,
     NATIONAL_OR_TRIBAL_ORIGIN,
     NOBILITY_TYPE_TITLE,
-    NULL,
     NUMBER,
     NUMBER_OF_RELATIONSHIPS,
     OCCUPATION,
@@ -131,8 +130,8 @@ from .primitives import (
     XREF_REPO,
     XREF_SOUR,
     XREF_SUBM,
-    YEAR,
     Y,
+    YEAR,
 )
 
 

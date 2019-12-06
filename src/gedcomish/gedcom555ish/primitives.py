@@ -319,10 +319,6 @@ class NOBILITY_TYPE_TITLE(Primitive, Size=(1, 120)):
     pass
 
 
-class NULL(Primitive, Size=(0, 0)):
-    pass
-
-
 class NUMBER_OF_RELATIONSHIPS(Primitive, Size=(1, 3)):
     pass
 
@@ -514,14 +510,11 @@ class XREF_SOUR(XREF_ID, Size=(3, 22)):
 class XREF_SUBM(XREF_ID, Size=(3, 22)):
     pass
 
-
-class YEAR(Primitive, Size=(3, 4)):
-    pass
-
-
 class Y(Primitive, Size=(1, 1)):
     pass
 
+class YEAR(Primitive, Size=(3, 4)):
+    pass
 
 __all__ = [
     "ADDRESS_CITY",
@@ -603,7 +596,6 @@ __all__ = [
     "NAME_TYPE",
     "NATIONAL_OR_TRIBAL_ORIGIN",
     "NOBILITY_TYPE_TITLE",
-    "NULL",
     "NUMBER_OF_RELATIONSHIPS",
     "NUMBER",
     "OCCUPATION",
@@ -652,7 +644,7 @@ __all__ = [
     "XREF_REPO",
     "XREF_SOUR",
     "XREF_SUBM",
-    "YEAR",
     "Y",
+    "YEAR",
 ]
 

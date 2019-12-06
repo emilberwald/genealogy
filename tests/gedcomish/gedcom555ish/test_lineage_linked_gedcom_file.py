@@ -4,8 +4,7 @@ import contextlib
 import inspect
 from typing import List
 
-from gedcomish.common import GEDCOM_LINES
-
+from gedcomish.common import GEDCOM_LINES, NULL
 
 from gedcomish.gedcom555ish.primitives import *
 
@@ -86,7 +85,7 @@ class TestExampleFiles:
             ).read_text()
             assert actual == expected
 
-    def test_555sample(self):
+    def get_555sample(self):
         ex = LINEAGE_LINKED_GEDCOM_FILE()
         ex.GEDCOM_HEADER = GEDCOM_HEADER()
         ex.GEDCOM_HEADER.HEAD = GEDCOM_HEADER.HEAD()
@@ -174,7 +173,7 @@ class TestExampleFiles:
         )
         indi.INDI.INDIVIDUAL_EVENT_STRUCTUREs.append(birth)
 
-        death = INDIVIDUAL_EVENT_STRUCTUREs.DEAT()
+        death = INDIVIDUAL_EVENT_STRUCTUREs.DEAT(NULL())
         death.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
         death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("14 Apr 1905")
@@ -298,7 +297,7 @@ class TestExampleFiles:
         fam.FAM.CHILs.append(CHIL("I3"))
 
         fam.FAM.FAMILY_EVENT_STRUCTUREs = list()
-        marriage = FAMILY_EVENT_STRUCTUREs.MARR()
+        marriage = FAMILY_EVENT_STRUCTUREs.MARR(NULL())
         marriage.FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL()
         marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
         marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("Dec 1859")
@@ -360,6 +359,10 @@ class TestExampleFiles:
 
         ex.GEDCOM_TRAILER = GEDCOM_TRAILER()
         ex.GEDCOM_TRAILER.TRLR = GEDCOM_TRAILER.TRLR()
+        return ex
+
+    def test_555sample(self):
+        ex = self.get_555sample()
 
         lines = GEDCOM_LINES()
         lines = ex(lines=lines, delta_level=0)
@@ -885,7 +888,15 @@ class TestGenerateFull:
         # <<NOTE_RECORD>>
         ########################################################################
         note = LINEAGE_LINKED_RECORDs.NOTE_RECORD()
-        note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(XREF_NOTE("XREF:NOTE"), USER_TEXT("USER_TEXT"))
+        note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(XREF_NOTE("XREF:NOTE"))
+        note.NOTE.REFNs = M * [_refn()]
+        note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_RECORD_ID")
+        note.NOTE.SOURCE_CITATIONs = M * [_source_citation(M)]
+        note.NOTE.CHANGE_DATE = _change_date(M)
+        ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(M * [note])
+
+        note = LINEAGE_LINKED_RECORDs.NOTE_RECORD()
+        note.NOTE = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE(USER_TEXT("USER_TEXT"))
         note.NOTE.REFNs = M * [_refn()]
         note.NOTE.RIN = LINEAGE_LINKED_RECORDs.NOTE_RECORD.NOTE.RIN("AUTOMATED_RECORD_ID")
         note.NOTE.SOURCE_CITATIONs = M * [_source_citation(M)]
@@ -933,8 +944,9 @@ class TestGenerateFull:
         lines = ex(lines=lines, delta_level=0)
         result = lines(0)
         print(result)
-        with NamedTemporaryFile(suffix=".ged") as fp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ged") as fp:
             fp.close()
             file = pathlib.Path(fp.name)
             file.write_text(result, encoding="utf-8-sig")
             print(file.absolute())
+            assert False
