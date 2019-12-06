@@ -8,7 +8,16 @@ import warnings
 import itertools
 from enum import Enum
 from typing import Callable, Iterable, List, Optional, Tuple, Union
+from contextlib import contextmanager
 
+@contextmanager
+def breaks():
+    class NestedBreakException(Exception):
+        pass
+    try:
+        yield NestedBreakException
+    except NestedBreakException:
+        pass
 
 class Meta(type):
     @classmethod
@@ -92,16 +101,48 @@ class Common(metaclass=Meta):
 
 
 class XREF_ID(Common):
-    def __init__(self, identifier=None):
-        if isinstance(identifier, uuid.UUID):
-            self.id = str(identifier).replace("-", "")[0:20]
-        elif identifier is not None:
-            self.id = str(identifier)[0:20]
-        else:
+    def __init__(self, *args, create=False, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if create:
             self.id = str(uuid.uuid1()).replace("-", "")[0:20]
+        else:
+            if args and isinstance(args, Iterable) and len(args) > 0:
+                if isinstance(args[0], uuid.UUID):
+                    self.id = str(args[0]).replace("-", "")[0:20]
+                elif args[0] is not None:
+                    self.id = str(args[0])[0:20]
 
     def __str__(self):
-        return f"@{self.id}@"
+        if hasattr(self, "id") and getattr(self, "id"):
+            return f"@{self.id}@"
+        else:
+            return super().__str__()
+
+
+class Tag(Common):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Pointer(Common):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Option(Common):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class Primitive(Common):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+class NULL(Primitive, Size=(0, 0)):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class GEDCOM_SYNTAX:
@@ -245,29 +286,6 @@ class GEDCOM_LINES:
         return "".join([str(line(level)) for line in self.lines])
 
 
-class Tag(Common):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class Pointer(Common):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class Option(Common):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class Primitive(Common):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-class NULL(Primitive, Size=(0, 0)):
-    pass
-
 class Substructure(Common):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -355,22 +373,39 @@ class Substructure(Common):
         bases = [base for base in nested.__class__.__bases__ if base not in (XREF_ID, Primitive, Substructure)]
         xrefs: List[XREF_ID] = list()
 
-        tag_values: List[Primitive] = list()
-        tag_xref_ids: List[XREF_ID] = list()
+        tag_value: Optional[Primitive] = None
+        tag_xref_id: Optional[XREF_ID] = None
 
         primitives: List[Primitive] = list()
         substructures: List[Substructure] = list()
+
+        blacklist: List[Union[Primitive, XREF_ID, str]] = list()
         for base in bases:
-            if issubclass(base, Primitive) and isinstance(nested, base):
-                tag_values.append(nested)
-                print(f"<is-tag-with-value-for-{base}:{nested}>")
-                continue
-            if issubclass(base, XREF_ID) and isinstance(nested, base):
-                tag_xref_ids.append(nested)
-                print(f"<is-tag-with-xref-for-{base}:{nested}>")
-                continue
-            if isinstance(nested, base) and not any((isinstance(nested, cls) for cls in (Tag, Pointer))):
-                print(f"<skip-self-{base}:{nested}>")
+            if isinstance(nested, base):
+                if isinstance(nested, Common):
+                    for arg in nested.args:
+                        if arg not in blacklist:
+                            if isinstance(arg, base) and isinstance(arg, XREF_ID):
+                                print(f"<tag-xref-id-for-{nested}:[{base}]:{arg}>")
+                                tag_xref_id = arg
+                                blacklist.append(arg)
+                                continue
+                            elif isinstance(arg, str) and issubclass(base, XREF_ID):
+                                print(f"<tag-xref-id-for-{nested}:{arg}>")
+                                tag_xref_id = base(arg)
+                                blacklist.append(arg)
+                                continue
+                            elif isinstance(arg, base) and isinstance(arg, Primitive):
+                                print(f"<tag-value-for-{nested}:[{base}]:{arg}>")
+                                tag_value = arg
+                                blacklist.append(arg)
+                                continue
+                            elif isinstance(arg, str) and issubclass(base, Primitive):
+                                print(f"<tag-value-for-{nested}:{arg}>")
+                                tag_value = base(arg)
+                                blacklist.append(arg)
+                                continue
+                print(f"<tag-no-value-found>")
                 continue
             if issubclass(base, Primitive):
                 found = list(Substructure.find_stuff(nested, base))
@@ -384,23 +419,16 @@ class Substructure(Common):
                 found = list(Substructure.find_stuff(nested, base))
                 print(f"<xrefs-for-{base}:{found}>")
                 xrefs.extend(found)
-        if (tag_values) or (tag_xref_ids):
-            tag_value = (
-                Primitive("".join((str(tag_value) for tag_value in tag_values if isinstance(tag_value, Primitive) and not isinstance(tag_value, NULL))))
-                if tag_values
-                else None
-            )
-            tag_xref_id = tag_xref_ids[0] if tag_xref_ids else None
-            if tag_value and tag_xref_ids:
-                print(f"<tag-with-value-and-xref-id>")
+        if (tag_value) or (tag_xref_id):
+            if tag_value and tag_xref_id and not isinstance(tag_value, NULL):
+                print(f"<tag-with-xref-id-and-value>")
                 lines.add_primitives(nested_level, tag, tag_value, xref_id=tag_xref_id)
-            elif tag_value:
-                if str(tag_value):
-                    print(f"<tag-with-tag-value>")
-                    lines.add_primitives(nested_level, tag, tag_value)
-                else:
-                    print(f"<tag-with-empty-value>")
-                    lines.add_primitives(nested_level, tag)
+            elif tag_value and not isinstance(tag_value, NULL):
+                print(f"<tag-with-tag-value>")
+                lines.add_primitives(nested_level, tag, tag_value)
+            elif tag_value and isinstance(tag_value, NULL):
+                print(f"<tag-with-NULL-value>")
+                lines.add_primitives(nested_level, tag)
             elif tag_xref_id:
                 if isinstance(nested, Pointer):
                     print(f"<tag-with-xref-id-pointer>")
