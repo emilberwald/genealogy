@@ -1,35 +1,27 @@
+import contextlib
+import datetime
+import inspect
+import logging
 import pathlib
 import tempfile
-import contextlib
-import inspect
 from typing import List
-import datetime
 
-from gedcomish.common import GEDCOM_LINES, NULL, get_gedcom_date
-
-from gedcomish.gedcom555ish.primitives import *
-
+import gedcomish.configure
+from gedcomish.common import GEDCOM_LINES, NULL
 from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
     ADDRESS_STRUCTURE,
     ASSOCIATION_STRUCTURE,
     CHANGE_DATE,
     CHIL,
     CHILD_TO_FAMILY_LINK,
-    EVENs,
     EVENT_DETAIL,
     FAMILY_EVENT_DETAIL,
-    FAMILY_EVENT_STRUCTUREs,
     FORM_RECORDS,
-    GEDCOM_FORM_HEADER_EXTENSIONs,
     GEDCOM_HEADER,
     GEDCOM_TRAILER,
-    INDIVIDUAL_ATTRIBUTE_STRUCTUREs,
     INDIVIDUAL_EVENT_DETAIL,
-    INDIVIDUAL_EVENT_STRUCTUREs,
     LINEAGE_LINKED_GEDCOM_FILE,
-    LINEAGE_LINKED_RECORDs,
     MULTIMEDIA_LINK,
-    NOTE_STRUCTUREs,
     PERSONAL_NAME_PIECES,
     PERSONAL_NAME_STRUCTURE,
     PLACE_STRUCTURE,
@@ -38,8 +30,19 @@ from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
     SOURCE_REPOSITORY_CITATION,
     SPOUSE_TO_FAMILY_LINK,
     SUBMITTER_RECORD,
+    EVENs,
+    FAMILY_EVENT_STRUCTUREs,
+    GEDCOM_FORM_HEADER_EXTENSIONs,
+    INDIVIDUAL_ATTRIBUTE_STRUCTUREs,
+    INDIVIDUAL_EVENT_STRUCTUREs,
+    LINEAGE_LINKED_RECORDs,
+    NOTE_STRUCTUREs,
     TEXTs,
 )
+from gedcomish.gedcom555ish.primitives import *
+
+gedcomish.configure.configure()
+logger = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
@@ -74,7 +77,7 @@ class TestExampleFiles:
         lines = GEDCOM_LINES()
         lines = minimal555(lines=lines, delta_level=0)
         result = lines(0)
-        print(result)
+        logger.info(result)
         with NamedTemporaryFile(suffix=".ged") as fp:
             fp.close()
             file = pathlib.Path(fp.name)
@@ -112,7 +115,7 @@ class TestExampleFiles:
         ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.CORP.ADDRESS_STRUCTURE.WWWs = [ADDRESS_STRUCTURE.WWW("www.gedcom.org")]
 
         ex.GEDCOM_FORM_HEADER_EXTENSION.DATE = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE(
-            "2 Oct 2019"
+            "2019-10-02"
         )
         ex.GEDCOM_FORM_HEADER_EXTENSION.DATE.TIME = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE.TIME(
             "0:00:00"
@@ -162,7 +165,7 @@ class TestExampleFiles:
         birth = INDIVIDUAL_EVENT_STRUCTUREs.BIRT()
         birth.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("2 Oct 1822")
+        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("1822-10-02")
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
             "Weston, Madison, Connecticut, United States of America"
@@ -177,7 +180,7 @@ class TestExampleFiles:
         death = INDIVIDUAL_EVENT_STRUCTUREs.DEAT(NULL())
         death.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("14 Apr 1905")
+        death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("1905-04-14")
         death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
         death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
             "Stamford, Fairfield, Connecticut, United States of America"
@@ -207,7 +210,7 @@ class TestExampleFiles:
         indiattr = INDIVIDUAL_ATTRIBUTE_STRUCTUREs.RESI()
         indiattr.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         indiattr.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        indiattr.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("from 1900 to 1905")
+        indiattr.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE(FROM="1900", TO="1905")
         indi.INDI.INDIVIDUAL_ATTRIBUTE_STRUCTUREs.append(indiattr)
 
         ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.append(indi)
@@ -230,7 +233,7 @@ class TestExampleFiles:
         birth = INDIVIDUAL_EVENT_STRUCTUREs.BIRT()
         birth.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("BEF 1828")
+        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE(BEF="1828")
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
             "Connecticut, United States of America"
@@ -263,7 +266,7 @@ class TestExampleFiles:
         birth = INDIVIDUAL_EVENT_STRUCTUREs.BIRT()
         birth.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("11 Jun 1861")
+        birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("1861-06-11")
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
         birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
             "Idaho Falls, Bonneville, Idaho, United States of America"
@@ -284,7 +287,7 @@ class TestExampleFiles:
         adoption = INDIVIDUAL_EVENT_STRUCTUREs.ADOP()
         adoption.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
         adoption.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        adoption.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("16 Mar 1864")
+        adoption.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("1864-03-16")
         indi.INDI.INDIVIDUAL_EVENT_STRUCTUREs.append(adoption)
 
         ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.append(indi)
@@ -301,7 +304,7 @@ class TestExampleFiles:
         marriage = FAMILY_EVENT_STRUCTUREs.MARR(NULL())
         marriage.FAMILY_EVENT_DETAIL = FAMILY_EVENT_DETAIL()
         marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
-        marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("Dec 1859")
+        marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE("1859-12")
         marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
         marriage.FAMILY_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
             "Rapid City, Pennington, South Dakota, United States of America"
@@ -325,7 +328,7 @@ class TestExampleFiles:
 
         sour.SOUR.DATA.EVENs = list()
         even = LINEAGE_LINKED_RECORDs.EVENs.EVEN("BIRT, DEAT, MARR")
-        even.DATE = LINEAGE_LINKED_RECORDs.EVENs.EVEN.DATE("FROM Jan 1820 TO DEC 1825")
+        even.DATE = LINEAGE_LINKED_RECORDs.EVENs.EVEN.DATE(FROM="1820-01", TO="1825-12")
         even.PLAC = LINEAGE_LINKED_RECORDs.EVENs.EVEN.PLAC("Madison, Connecticut, United States of America")
         sour.SOUR.DATA.EVENs.append(even)
 
@@ -370,7 +373,7 @@ class TestExampleFiles:
         lines = GEDCOM_LINES()
         lines = ex(lines=lines, delta_level=0)
         result = lines(0)
-        print(result)
+        logger.info(result)
         with NamedTemporaryFile(suffix=".ged") as fp:
             fp.close()
             file = pathlib.Path(fp.name)
@@ -378,7 +381,7 @@ class TestExampleFiles:
             actual = file.read_text()
             expected = (
                 pathlib.Path(inspect.getframeinfo(inspect.currentframe()).filename).resolve().parent
-                / pathlib.Path("555SAMPLE-shuffled.GED")
+                / pathlib.Path("555SAMPLE-shuffled-uppercased.GED")
             ).read_text()
             actual_lines = set(actual.splitlines())
             expected_lines = set(expected.splitlines())
@@ -958,10 +961,11 @@ class TestGenerateFull:
         lines = GEDCOM_LINES()
         lines = ex(lines=lines, delta_level=0)
         result = lines(0)
-        print(result)
+        logger.info(result)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".ged") as fp:
             fp.close()
             file = pathlib.Path(fp.name)
             file.write_text(result, encoding="utf-8-sig")
-            print(file.absolute())
+            logger.info(file.absolute())
+
             assert False

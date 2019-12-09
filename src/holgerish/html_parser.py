@@ -1,14 +1,14 @@
-import copy
 import logging
+from .configure import configure
+import copy
 import pathlib
 import re
 import uuid
 from collections import OrderedDict, defaultdict
 from typing import DefaultDict, List
 
-logging.basicConfig(
-    format="[%(levelname)s][%(name)s][%(asctime)s][%(relativeCreated)07dms][%(processName)s:%(threadName)s][%(pathname)s:%(lineno)s][%(funcName)s]\n%(message)s\n"
-)
+configure()
+logger = logging.getLogger(__name__)
 
 
 def parse_individual(text):
@@ -231,7 +231,7 @@ def match(personRegistry: PersonRegistry, familyRegistry: FamilyRegistry):
     registered_persons = personRegistry.get_persons()
     persons = familyRegistry.get_persons()
     family_to_source = familyRegistry.get_family_to_source()
-    logging.info(f"matching {len(persons)} persons  to the {len(registered_persons)} persons in registry.")
+    logger.info(f"matching {len(persons)} persons  to the {len(registered_persons)} persons in registry.")
     for person_id, person_query in registered_persons.items():
         normalized_bday_query = normalize_date(person_query[0][_BIRTHDAY])
         normalized_name_query = normalize_name(person_query[0][_NAME])
@@ -267,8 +267,8 @@ def match(personRegistry: PersonRegistry, familyRegistry: FamilyRegistry):
                     persons.remove(full_person)
                     keep_looping = True
                     break
-    logging.warning(f"#unmatched persons: {len(persons)}")
-    logging.info(f"adding person info to families.")
+    logger.warning(f"#unmatched persons: {len(persons)}")
+    logger.info(f"adding person info to families.")
     families: DefaultDict[str, DefaultDict[str, List]] = defaultdict(lambda: defaultdict(list))
     for person_id, infos in registered_persons.items():
         for info in infos:
@@ -329,5 +329,5 @@ def parse_html(file: pathlib.Path):
     personRegistry = PersonRegistry(file)
     familyRegistry = FamilyRegistry(file)
     matched, unmatched, families = match(personRegistry, familyRegistry)
-    logging.warning(f"unmatched persons: {unmatched}")
+    logger.warning(f"unmatched persons: {unmatched}")
     return merge(matched), unmatched, families

@@ -1,8 +1,70 @@
 import datetime
+import logging
+from enum import Enum, auto
 from typing import Iterable
-from enum import Enum
 
-from ..common import XREF_ID, Primitive, get_gedcom_date, get_month
+from ..common import XREF_ID, Primitive, get_gedcom_date, get_month, try_strptime
+from ..configure import configure
+
+configure()
+logger = logging.getLogger(__name__)
+
+
+class DateConstraint(Enum):
+    INTERPRETED = auto()
+    PARTIAL = auto()
+    FULL = auto()
+
+
+class DateHelper:
+    def __init__(self, *args, constraint: DateConstraint, **kwargs):
+        self.args = args
+        self.constraint = constraint
+        self.kwargs = kwargs
+
+    def get_date(self, date):
+        if self.constraint == DateConstraint.INTERPRETED:
+            return get_gedcom_date(date)
+        elif self.constraint == DateConstraint.PARTIAL:
+            if isinstance(date, str):
+                datestr = date.strip().rstrip(".xX-")
+                fmts = [r"%Y-%m-%d", r"%Y-%m", r"%Y"]
+                for fmt in fmts:
+                    try:
+                        date = datetime.datetime.strptime(datestr, fmt)
+                        if fmt == fmts[0]:
+                            return "\u0020".join((str(date.day), get_month(date), str(date.year)))
+                        elif fmt == fmts[1]:
+                            return "\u0020".join((get_month(date), str(date.year)))
+                        elif fmt == fmts[2]:
+                            return str(date.year)
+                    except Exception as _:
+                        pass
+            elif isinstance(date, (datetime.date, datetime.datetime)):
+                return "\u0020".join((str(date.day), get_month(date), str(date.year)))
+        elif self.constraint == DateConstraint.FULL:
+            if isinstance(date, str):
+                date = try_strptime(date)
+            if isinstance(date, (datetime.date, datetime.datetime)):
+                return "\u0020".join((str(date.day), get_month(date), str(date.year)))
+        raise ValueError(f"get_date failed: locals()={locals()}")
+
+    def __str__(self):
+        if (
+            self.args
+            and isinstance(self.args, Iterable)
+            and len(self.args) > 0
+            and isinstance(self.args[0], (str, datetime.date, datetime.datetime))
+        ):
+            return self.get_date(self.args[0])
+        if self.kwargs:
+            dates = {key: val for key, val in self.kwargs.items() if isinstance(val, (str, datetime.datetime))}
+            if dates:
+                result = list()
+                for key, val in dates.items():
+                    result.append(key)
+                    result.append(str(self.get_date(val)))
+                return "\u0020".join(result)
 
 
 class ADDRESS_CITY(Primitive, Size=(1, 60)):
@@ -115,19 +177,16 @@ class DATE_CALENDAR(Primitive, Size=(4, 35)):
 class DATE_EXACT(Primitive, Size=(10, 11)):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if (
-            args
-            and isinstance(args, Iterable)
-            and len(args) > 0
-            and isinstance(args[0], (datetime.date, datetime.datetime))
-        ):
-            self.date = args[0]
+        self.date_helper = DateHelper(*args, constraint=DateConstraint.FULL, **kwargs)
 
     def __str__(self):
-        if hasattr(self, "date") and getattr(self, "date"):
-            return "\u0020".join(
-                (str(component) for component in (self.date.day, get_month(self.date), self.date.year))
-            )
+        if hasattr(self, "date_helper") and getattr(self, "date_helper"):
+            try:
+                if result := str(self.date_helper):
+                    return result
+            except Exception as e:
+                logger.warning(f"{e}")
+        logger.warning("fallback to super().__str__()")
         return super().__str__()
 
 
@@ -149,16 +208,17 @@ class DATE_JULN(Primitive, Size=(4, 35)):
 
 class DATE_PERIOD(Primitive, Size=(7, 35)):
     def __init__(self, *args, **kwargs):
-        self.dates = {key: val for key, val in kwargs.items() if isinstance(val, datetime.datetime)}
-        super().__init__(*args, str(self), **kwargs)
+        super().__init__(*args, **kwargs)
+        self.date_helper = DateHelper(*args, constraint=DateConstraint.PARTIAL, **kwargs)
 
     def __str__(self):
-        if hasattr(self, "dates") and getattr(self, "dates"):
-            result = list()
-            for key, val in self.dates.items():
-                result.append(key)
-                result.append(str(DATE(val)))
-            return "\u0020".join(result)
+        if hasattr(self, "date_helper") and getattr(self, "date_helper"):
+            try:
+                if result := str(self.date_helper):
+                    return result
+            except Exception as e:
+                logger.warning(f"{e}")
+        logger.warning("fallback to super().__str__()")
         return super().__str__()
 
 
@@ -173,34 +233,38 @@ class DATE_RANGE(Primitive, Size=(8, 35)):
 class DATE_VALUE(Primitive, Size=(1, 35)):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if (
-            args
-            and isinstance(args, Iterable)
-            and len(args) > 0
-            and isinstance(args[0], (datetime.date, datetime.datetime))
-        ):
-            self.date = args[0]
+        self.date_helpers = [
+            DateHelper(*args, constraint=DateConstraint.PARTIAL, **kwargs),
+            DateHelper(*args, constraint=DateConstraint.FULL, **kwargs),
+            DateHelper(*args, constraint=DateConstraint.INTERPRETED, **kwargs),
+        ]
 
     def __str__(self):
-        if hasattr(self, "date") and getattr(self, "date"):
-            return get_gedcom_date(self.date)
+        if hasattr(self, "date_helpers") and getattr(self, "date_helpers"):
+            for date_helper in self.date_helpers:
+                try:
+                    if result := str(date_helper):
+                        logger.debug(f"DATE_VALUE:{result}")
+                        return result
+                except Exception as e:
+                    logger.warning(f"{e}")
+        logger.warning("fallback to super().__str__()")
         return super().__str__()
 
 
 class DATE(Primitive, Size=(4, 35)):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if (
-            args
-            and isinstance(args, Iterable)
-            and len(args) > 0
-            and isinstance(args[0], (datetime.date, datetime.datetime))
-        ):
-            self.date = args[0]
+        self.date_helper = DateHelper(*args, constraint=DateConstraint.PARTIAL, **kwargs)
 
     def __str__(self):
-        if hasattr(self, "date") and getattr(self, "date"):
-            return "\u0020".join((str(self.date.day), get_month(self.date), str(self.date.year)))
+        if hasattr(self, "date_helper") and getattr(self, "date_helper"):
+            try:
+                if result := str(self.date_helper):
+                    return result
+            except Exception as e:
+                logger.warning(f"{e}")
+        logger.warning("fallback to super().__str__()")
         return super().__str__()
 
 

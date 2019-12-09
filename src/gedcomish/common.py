@@ -1,14 +1,22 @@
 import datetime
+import functools
 import inspect
+import itertools
+import logging
 import os
 import pathlib
 import re
+import tempfile
 import uuid
 import warnings
-import itertools
-from enum import Enum
-from typing import Callable, Iterable, List, Optional, Tuple, Union
 from contextlib import contextmanager
+from enum import Enum
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+
+from .configure import configure
+
+configure()
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -69,7 +77,10 @@ class Meta(type):
             if not hasattr(classname, key):
                 setattr(classname, key, value)
             else:
-                warnings.warn(f"Could not enter {key}:{value} into class dictionary", Warning)
+                warnings.warn(
+                    f"Could not enter {key}:{value} into class dictionary of {name} (already has {key}:{getattr(classname, key)})",
+                    Warning,
+                )
         super().__init__(name, bases, namespace, **kwds)
 
     def __call__(classname, *args, **kwargs):
@@ -266,14 +277,14 @@ class GEDCOM_LINES:
         if primitives:
             for primitive in primitives:
                 if primitive:
-                    print(f"\t\t<{level_delta} {tag} {primitive} {xref_id}>")
+                    logger.debug(f"\t\t<{level_delta} {tag} {primitive} {xref_id}>")
                     self.add_text(level_delta=level_delta, tag=tag, primitive=primitive, xref_id=xref_id)
         else:
 
             def apply(n, level_delta=level_delta, tag=tag, xref_id=xref_id):
                 return GEDCOM_LINE(level=n + level_delta, tag=tag, xref_id=xref_id, line_value=None)
 
-            print(f"\t\t<{level_delta} {tag} {primitives} {xref_id}>")
+            logger.debug(f"\t\t<{level_delta} {tag} {primitives} {xref_id}>")
             self.lines.append(apply)
 
     def add_substructures(self, level_delta: int, *substructs: Optional["Substructure"]):
@@ -284,11 +295,43 @@ class GEDCOM_LINES:
                     def apply(n, level_delta=level_delta, substruct=substruct):
                         return substruct(n + level_delta)
 
-                    print(f"\t\t<<{level_delta} {substructs}>>")
+                    logger.debug(f"\t\t<<{level_delta} {substructs}>>")
                     self.lines.append(apply)
 
     def __call__(self, level=int):
         return "".join([str(line(level)) for line in self.lines])
+
+
+@functools.lru_cache(maxsize=None)
+def getsources(cls):
+    file = inspect.getsourcefile(cls)
+    source = pathlib.Path(file).read_text()
+    starts = list(re.finditer(fr"^(?=class)", source, re.MULTILINE))
+    ends = starts[1:]
+    return tuple(
+        source[start:end][m.start() :]
+        for end, start in itertools.zip_longest(
+            (end.start() if end else None for end in ends), (start.start() if start else None for start in starts)
+        )
+        for m in re.finditer(fr"(?=class\s+{cls.__name__}\s*\()", source[start:end])
+    )
+
+
+@functools.lru_cache(maxsize=None)
+def getsource(cls, nesteds):
+    def score(source, nesteds):
+        tot = 0
+        for nested in nesteds:
+            if isinstance(nested, Iterable):
+                for subnested in nested:
+                    tot += subnested.__class__.__name__ in source
+            else:
+                tot += nested.__class__.__name__ in source
+        return tot
+
+    alternatives = getsources(cls)
+    best = max(alternatives, key=lambda alternative, nesteds=nesteds: score(alternative, nesteds))
+    return best
 
 
 class Substructure(Common):
@@ -326,32 +369,6 @@ class Substructure(Common):
         else:
             yield from (getattr(nested, attr) for attr in dir(nested) if isinstance(getattr(nested, attr), base))
 
-    def itersource(self):
-        file = inspect.getsourcefile(self.__class__)
-        source = pathlib.Path(file).read_text()
-        starts = list(re.finditer(fr"^(?=class)", source, re.MULTILINE))
-        ends = starts[1:]
-        for end, start in itertools.zip_longest(
-            (end.start() if end else None for end in ends), (start.start() if start else None for start in starts)
-        ):
-            for m in re.finditer(fr"(?=class\s+{self.__class__.__name__}\s*\()", source[start:end]):
-                yield source[start:end][m.start() :]
-
-    def getsource(self, nesteds):
-        def score(source, nesteds):
-            tot = 0
-            for nested in nesteds:
-                if isinstance(nested, Iterable):
-                    for subnested in nested:
-                        tot += subnested.__class__.__name__ in source
-                else:
-                    tot += nested.__class__.__name__ in source
-            return tot
-
-        alternatives = [inspect.getsource(self.__class__), *self.itersource()]
-        best = max(alternatives, key=lambda alternative, nesteds=nesteds: score(alternative, nesteds))
-        return best
-
     @staticmethod
     def _is_reference_included(nested):
         for base in nested.__class__.__bases__:
@@ -368,7 +385,7 @@ class Substructure(Common):
     def handle_nested(self, *, lines: GEDCOM_LINES, nested: Union[Primitive, "Substructure"], delta_level: int):
         if hasattr(nested, "delta_level") and getattr(nested, "delta_level"):
             nested_level = delta_level + getattr(nested, "delta_level")
-            print(
+            logger.debug(
                 f"![{nested_level}\t{nested.__class__.__qualname__} <= {delta_level:+d} {getattr(nested, 'delta_level'):+d}]"
             )
         else:
@@ -384,108 +401,113 @@ class Substructure(Common):
         primitives: List[Primitive] = list()
         substructures: List[Substructure] = list()
 
-        blacklist: List[Union[Primitive, XREF_ID, str]] = list()
+        blacklist: List[Union[Common, Primitive, XREF_ID, str]] = list()
         for base in bases:
             if isinstance(nested, base):
                 if isinstance(nested, Common):
-                    if hasattr(nested, "args"):
+                    if hasattr(nested, "args") and getattr(nested, "args"):
                         for arg in nested.args:
                             if arg not in blacklist:
                                 if not tag_xref_id and isinstance(arg, base) and isinstance(arg, XREF_ID):
-                                    print(f"<tag-xref-id-for-{nested}:[{base}]:{arg}>")
+                                    logger.debug(f"<tag-xref-id-for-{nested}:[{base}]:{arg}>")
                                     tag_xref_id = arg
                                     blacklist.append(arg)
                                     continue
                                 elif not tag_xref_id and isinstance(arg, str) and issubclass(base, XREF_ID):
-                                    print(f"<tag-xref-id-for-{nested}:{arg}>")
+                                    logger.debug(f"<tag-xref-id-for-{nested}:{arg}>")
                                     tag_xref_id = base(arg)
                                     blacklist.append(arg)
                                     continue
                                 elif not tag_value and isinstance(arg, base) and isinstance(arg, Primitive):
-                                    print(f"<tag-value-for-{nested}:[{base}]:{arg}>")
+                                    logger.debug(f"<tag-value-for-{nested}:[{base}]:{arg}>")
                                     tag_value = arg
                                     blacklist.append(arg)
                                     continue
                                 elif (
                                     not tag_value and isinstance(arg, str) and str(arg) and issubclass(base, Primitive)
                                 ):
-                                    print(f"<tag-str-value-for-{nested}:{arg}>")
+                                    logger.debug(f"<tag-str-value-for-{nested}:{arg}>")
                                     tag_value = base(arg)
                                     blacklist.append(arg)
                                     continue
                                 elif not tag_value and isinstance(arg, Common) and str(arg):
-                                    print(f"<tag-common-last-resort-value-for-{nested}:{arg}>")
+                                    logger.debug(f"<tag-common-last-resort-value-for-{nested}:{arg}>")
                                     tag_value = base(arg)
                                     blacklist.append(arg)
                                     continue
                                 elif not tag_value and not isinstance(arg, Common):
-                                    print(f"<tag-unknown-last-resort-value-for-{nested}:{arg}>")
+                                    logger.debug(f"<tag-unknown-last-resort-value-for-{nested}:{arg}>")
                                     tag_value = base(arg)
                                     blacklist.append(arg)
                                     continue
-
-                    print(f"<tag-no-value-found>")
+                    elif hasattr(nested, "kwargs") and getattr(nested, "kwargs"):
+                        if (not tag_value and isinstance(nested, Primitive)):
+                            logger.debug(f"<tag-str-of-self-for-{nested}>")
+                            tag_value = nested
+                            blacklist.append(nested)
+                            continue
+                    logger.debug(f"<tag-no-value-found>")
                     continue
             if issubclass(base, Primitive):
                 found = list(Substructure.find_stuff(nested, base))
-                print(f"<primitives-for-{base}:{found}>")
+                logger.debug(f"<primitives-for-{base}:{found}>")
                 primitives.extend(found)
             if issubclass(base, Substructure):
                 found = list(Substructure.find_stuff(nested, base))
-                print(f"<substructures-for-{base}:{found}>")
+                logger.debug(f"<substructures-for-{base}:{found}>")
                 substructures.extend(found)
             if issubclass(base, XREF_ID) and isinstance(nested, Pointer):
                 found = list(Substructure.find_stuff(nested, base))
-                print(f"<xrefs-for-{base}:{found}>")
+                logger.debug(f"<xrefs-for-{base}:{found}>")
                 xrefs.extend(found)
         if (tag_value) or (tag_xref_id):
             if tag_value and tag_xref_id and not isinstance(tag_value, NULL):
-                print(f"<tag-with-xref-id-and-value>")
+                logger.debug(f"<tag-with-xref-id-and-value>")
                 lines.add_primitives(nested_level, tag, tag_value, xref_id=tag_xref_id)
             elif tag_value and not isinstance(tag_value, NULL):
-                print(f"<tag-with-tag-value>")
+                logger.debug(f"<tag-with-tag-value>")
                 lines.add_primitives(nested_level, tag, tag_value)
             elif tag_value and isinstance(tag_value, NULL):
-                print(f"<tag-with-NULL-value>")
+                logger.debug(f"<tag-with-NULL-value>")
                 lines.add_primitives(nested_level, tag)
             elif tag_xref_id:
                 if isinstance(nested, Pointer):
-                    print(f"<tag-with-xref-id-pointer>")
+                    logger.debug(f"<tag-with-xref-id-pointer>")
                     lines.add_primitives(nested_level, tag, xref_id=tag_xref_id)
                 else:
-                    print(f"<tag-with-xref-id-value>")
+                    logger.debug(f"<tag-with-xref-id-value>")
                     lines.add_primitives(nested_level, tag, Primitive(tag_xref_id))
         if isinstance(nested, Tag):
-            print(f"<tag-with-tag>")
+            logger.debug(f"<tag-with-tag>")
             lines.add_primitives(nested_level, tag)
         if xrefs:
-            print(f"<xrefs>")
+            logger.debug(f"<xrefs>")
             for xref in (xref for xref in xrefs if xref is not None):
                 lines.add_primitives(nested_level, tag, xref_id=xref if xref else None)
         if primitives:
-            print(f"<primitives>")
+            logger.debug(f"<primitives>")
             lines.add_primitives(nested_level, tag, *primitives, xref_id=xrefs[0] if xrefs else None)
         if substructures:
-            print(f"<substructures>")
+            logger.debug(f"<substructures>")
             lines.add_substructures(nested_level, *substructures)
         try:
             if isinstance(nested, Substructure):
-                print(f"<nested:call@{delta_level}>")
+                logger.debug(f"<nested:call@{delta_level}>")
                 nested(lines=lines, delta_level=delta_level)
             else:
-                print(f"<nested:skip>")
+                logger.debug(f"<nested:skip>")
         except Exception as e:
-            print(f"<nested:except:{e}>")
+            logger.debug(f"<nested:except:{e}>")
 
     def __call__(self, *, lines: GEDCOM_LINES, delta_level=0):
-        print(f"\n[{delta_level}\t{self.__class__.__qualname__}]")
+        logger.debug(f"\n[{delta_level}\t{self.__class__.__qualname__}]")
         if hasattr(self, "delta_level") and getattr(self, "delta_level"):
             delta_level = delta_level + getattr(self, "delta_level")
-            print(f"![{delta_level}\t{self.__class__.__qualname__} => {getattr(self, 'delta_level'):+d}]")
+            logger.debug(f"![{delta_level}\t{self.__class__.__qualname__} => {getattr(self, 'delta_level'):+d}]")
 
-        nesteds = list(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
+        nesteds = tuple(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
 
-        clssource = self.getsource(nesteds)
+        clssource = getsource(self.__class__, nesteds)
 
         nesteds = sorted(
             nesteds,
@@ -500,32 +522,32 @@ class Substructure(Common):
             )
             else float("inf"),
         )
-        print(f"<nesteds:{nesteds}>\n{'*'*80}\n{clssource}\n{'*'*80}\n")
+        logger.debug(f"<nesteds:{nesteds}>\n{'*'*80}\n{clssource}\n{'*'*80}\n")
         for nested in nesteds:
 
-            print(f"<nested:{nested.__class__.__qualname__}:{nested}>")
+            logger.debug(f"<nested:{nested.__class__.__qualname__}:{nested}>")
             is_iteration_included = isinstance(nested, Iterable)
             is_reference_included = re.search(r"|".join(Substructure._is_reference_included(nested=nested)), clssource)
 
             if is_iteration_included:
-                print("<is_iteration_included>")
+                logger.debug("<is_iteration_included>")
                 for subnested in nested:
-                    print(f"<subnested:handle_nested@+1:{delta_level+1}>")
+                    logger.debug(f"<subnested:handle_nested@+1:{delta_level+1}>")
                     self.handle_nested(lines=lines, nested=subnested, delta_level=delta_level + 1)
             elif is_reference_included:
                 if isinstance(nested, Substructure):
-                    print(f"<is_reference_included:handle_nested@+1:{delta_level+1}>")
+                    logger.debug(f"<is_reference_included:handle_nested@+1:{delta_level+1}>")
                     self.handle_nested(lines=lines, nested=nested, delta_level=delta_level + 1)
                 else:
-                    print(f"<is_reference_included:skip:{nested}>")
+                    logger.debug(f"<is_reference_included:skip:{nested}>")
             else:
-                print(f"<else:handle_nested@{delta_level}>")
+                logger.debug(f"<else:handle_nested@{delta_level}>")
                 self.handle_nested(lines=lines, nested=nested, delta_level=delta_level)
 
         return lines
 
 
-def get_month(date: datetime.datetime):
+def get_month(date: Union[datetime.date, datetime.datetime]):
     return [None, "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][date.month]
 
 

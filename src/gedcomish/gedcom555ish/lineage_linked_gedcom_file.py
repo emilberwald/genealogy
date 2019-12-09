@@ -1,7 +1,7 @@
+import logging
+from ..configure import configure
 from typing import Iterable
-
-from ..common import Option, Pointer, Substructure, Tag, NULL
-
+from ..common import NULL, Option, Pointer, Substructure, Tag
 from .primitives import (
     ADDRESS_CITY,
     ADDRESS_COUNTRY,
@@ -130,9 +130,12 @@ from .primitives import (
     XREF_REPO,
     XREF_SOUR,
     XREF_SUBM,
-    Y,
     YEAR,
+    Y,
 )
+
+configure()
+logger = logging.getLogger(__name__)
 
 
 class MULTIMEDIA_LINK(Substructure, delta_level=0):
@@ -141,14 +144,14 @@ class MULTIMEDIA_LINK(Substructure, delta_level=0):
 
 
 class NOTE_STRUCTUREs(Substructure, delta_level=0):
-    class NOTE_STRUCTURE(Substructure, delta_level=0):
+    class NOTE_STRUCTURE(Substructure):
         pass
 
-    class NOTE_STRUCTURE_USER_TEXT(NOTE_STRUCTURE, Option, Substructure, delta_level=-1):
+    class NOTE_STRUCTURE_USER_TEXT(NOTE_STRUCTURE, Option, Substructure, delta_level=0):
         class NOTE(USER_TEXT, Substructure, delta_level=0):
             pass
 
-    class NOTE_STRUCTURE_XREF_NOTE(NOTE_STRUCTURE, Option, Substructure, delta_level=-1):
+    class NOTE_STRUCTURE_XREF_NOTE(NOTE_STRUCTURE, Option, Substructure, delta_level=0):
         class NOTE(XREF_NOTE, Substructure, delta_level=0):
             pass
 
@@ -299,7 +302,7 @@ class FAMILY_EVENT_DETAIL(Substructure, delta_level=0):
 
 
 class FAMILY_EVENT_STRUCTUREs(Substructure, delta_level=None):
-    class FAMILY_EVENT_STRUCTURE(Substructure, delta_level=0):
+    class FAMILY_EVENT_STRUCTURE(Substructure):
         pass
 
     class ANUL(FAMILY_EVENT_STRUCTURE, Option, Tag, Substructure, delta_level=0):
@@ -396,7 +399,7 @@ class INDIVIDUAL_EVENT_DETAIL(Substructure, delta_level=0):
 
 
 class INDIVIDUAL_EVENT_STRUCTUREs(Substructure, delta_level=None):
-    class INDIVIDUAL_EVENT_STRUCTURE(Substructure, delta_level=0):
+    class INDIVIDUAL_EVENT_STRUCTURE(Substructure):
         pass
 
     class BIRT(INDIVIDUAL_EVENT_STRUCTURE, Option, Tag, Substructure, delta_level=0):
@@ -474,7 +477,7 @@ class INDIVIDUAL_EVENT_STRUCTUREs(Substructure, delta_level=None):
 
 
 class INDIVIDUAL_ATTRIBUTE_STRUCTUREs(Substructure, delta_level=None):
-    class INDIVIDUAL_ATTRIBUTE_STRUCTURE(Substructure, delta_level=0):
+    class INDIVIDUAL_ATTRIBUTE_STRUCTURE(Substructure):
         pass
 
     class CAST(INDIVIDUAL_ATTRIBUTE_STRUCTURE, Option, CASTE_NAME, Substructure, delta_level=0):
@@ -583,6 +586,7 @@ class SOURCE_REPOSITORY_CITATION(Substructure, delta_level=0):
         class CALN(SOURCE_CALL_NUMBER, Substructure, delta_level=1):
             class MEDI(SOURCE_MEDIA_TYPE, Substructure, delta_level=1):
                 """deprecated"""
+
                 pass
 
 
@@ -607,7 +611,7 @@ class CHIL(XREF_INDI, Substructure, delta_level=0):
 class LINEAGE_LINKED_RECORDs(Substructure, delta_level=None):
     EVENs = EVENs
 
-    class LINEAGE_LINKED_RECORD(Substructure, delta_level=0):
+    class LINEAGE_LINKED_RECORD(Substructure):
         pass
 
     class FAM_GROUP_RECORD(LINEAGE_LINKED_RECORD, Option, Substructure, delta_level=0):
@@ -771,7 +775,7 @@ class GEDCOM_HEADER(Substructure, delta_level=0):
 
 
 class GEDCOM_FORM_HEADER_EXTENSIONs(Substructure, delta_level=None):
-    class GEDCOM_FORM_HEADER_EXTENSION(Substructure, delta_level=1):
+    class GEDCOM_FORM_HEADER_EXTENSION(Substructure):
         pass
 
     class LINEAGE_LINKED_HEADER_EXTENSION(GEDCOM_FORM_HEADER_EXTENSION, Option, Substructure, delta_level=1):
