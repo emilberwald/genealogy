@@ -285,42 +285,64 @@ def merge(matches):
     merges = dict()
     for match_id, match in matches.items():
         merge = dict()
-        merge[_NAME] = (match[0][_NAME],)
-        last_names, first_names = match[0][_NAME].split(",")
-        first_names = first_names.split()
-        last_names = last_names.split()
-        merge[_FIRST_NAMES] = tuple(first_names)
-        merge[_LAST_NAMES] = tuple(last_names)
+        try:
+            merge[_NAME] = (match[0][_NAME],)
+        except Exception as e:
+            logger.error(f"{e}")
+        try:
+            last_names, first_names = match[0][_NAME].split(",")
+            first_names = first_names.split()
+            last_names = last_names.split()
+            merge[_FIRST_NAMES] = tuple(first_names)
+            merge[_LAST_NAMES] = tuple(last_names)
+        except Exception as e:
+            logger.error(f"{e}")
 
-        merge[_BIRTHDAY] = (match[0][_BIRTHDAY],)
-        merge[_PERSON_IN_FAMILY] = match[0][_PERSON_IN_FAMILY]
-        merge[_PARENT_IN_FAMILY] = tuple(
-            family_id
-            for person in match
-            if _PARENT_IN_FAMILY in person
-            for family_id in person[_PARENT_IN_FAMILY]
-            if person[_PARENT_IN_FAMILY]
-        )
-        merge[_CHILD_IN_FAMILY] = tuple(
-            family_id
-            for person in match
-            if _CHILD_IN_FAMILY in person
-            for family_id in person[_CHILD_IN_FAMILY]
-            if person[_CHILD_IN_FAMILY]
-        )
-        merge[_DEATHDAY] = tuple(person[_DEATHDAY] for person in match if _DEATHDAY in person and person[_DEATHDAY])
-        for prop in (
-            _BIRTHPLACE,
-            _DEATHPLACE,
-            _LIVINGPLACE,
-        ):
-            merge[prop] = tuple(" ".join(person[prop].split()) for person in match if prop in person and person[prop])
-        for prop in (_BIRTHPLACE, _DEATHPLACE, _LIVINGPLACE):
-            if merge[prop] and len(merge[prop]) > 1:
-                for prop_place in merge[prop]:
-                    if all(pplace in prop_place for pplace in merge[prop]):
-                        merge[prop] = (prop_place,)
-                        break
+        try:
+            merge[_BIRTHDAY] = (match[0][_BIRTHDAY],)
+        except Exception as e:
+            logger.error(f"{e}")
+        try:
+            merge[_PERSON_IN_FAMILY] = match[0][_PERSON_IN_FAMILY]
+        except Exception as e:
+            logger.error(f"{e}")
+        try:
+            merge[_PARENT_IN_FAMILY] = tuple(
+                family_id
+                for person in match
+                if _PARENT_IN_FAMILY in person
+                for family_id in person[_PARENT_IN_FAMILY]
+                if person[_PARENT_IN_FAMILY]
+            )
+        except Exception as e:
+            logger.error(f"{e}")
+        try:
+            merge[_CHILD_IN_FAMILY] = tuple(
+                family_id
+                for person in match
+                if _CHILD_IN_FAMILY in person
+                for family_id in person[_CHILD_IN_FAMILY]
+                if person[_CHILD_IN_FAMILY]
+            )
+        except Exception as e:
+            logger.error(f"{e}")
+        try:
+            merge[_DEATHDAY] = tuple(person[_DEATHDAY] for person in match if _DEATHDAY in person and person[_DEATHDAY])
+            for prop in (
+                _BIRTHPLACE,
+                _DEATHPLACE,
+                _LIVINGPLACE,
+            ):
+                merge[prop] = tuple(" ".join(person[prop].split()) for person in match if prop in person and person[prop])
+
+            for prop in (_BIRTHPLACE, _DEATHPLACE, _LIVINGPLACE):
+                if merge[prop] and len(merge[prop]) > 1:
+                    for prop_place in merge[prop]:
+                        if all(pplace in prop_place for pplace in merge[prop]):
+                            merge[prop] = (prop_place,)
+                            break
+        except Exception as e:
+            logger.error(f"{e}")
         merges[match_id] = {k: v for k, v in merge.items() if v}
     return merges
 
