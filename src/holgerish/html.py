@@ -1,13 +1,37 @@
-import logging
-from .configure import configure
 import copy
+import datetime
+import logging
 import pathlib
 import re
+import socket
 import uuid
 from collections import OrderedDict, defaultdict
 from typing import DefaultDict, List
 
-configure()
+import pkg_resources
+
+from gedcomish.common import GEDCOM_LINES, NULL
+from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
+    CHIL,
+    CHILD_TO_FAMILY_LINK,
+    EVENT_DETAIL,
+    FORM_RECORDS,
+    GEDCOM_FORM_HEADER_EXTENSIONs,
+    GEDCOM_HEADER,
+    GEDCOM_TRAILER,
+    INDIVIDUAL_EVENT_DETAIL,
+    INDIVIDUAL_EVENT_STRUCTUREs,
+    LINEAGE_LINKED_GEDCOM_FILE,
+    LINEAGE_LINKED_RECORDs,
+    PERSONAL_NAME_PIECES,
+    PERSONAL_NAME_STRUCTURE,
+    PLACE_STRUCTURE,
+    SPOUSE_TO_FAMILY_LINK,
+    SUBMITTER_RECORD,
+    XREF_SUBM,
+)
+from gedcomish.gedcom555ish.primitives import XREF_FAM, XREF_INDI
+
 logger = logging.getLogger(__name__)
 
 
@@ -333,7 +357,9 @@ def merge(matches):
                 _DEATHPLACE,
                 _LIVINGPLACE,
             ):
-                merge[prop] = tuple(" ".join(person[prop].split()) for person in match if prop in person and person[prop])
+                merge[prop] = tuple(
+                    " ".join(person[prop].split()) for person in match if prop in person and person[prop]
+                )
 
             for prop in (_BIRTHPLACE, _DEATHPLACE, _LIVINGPLACE):
                 if merge[prop] and len(merge[prop]) > 1:
@@ -353,3 +379,130 @@ def parse_html(file: pathlib.Path):
     matched, unmatched, families = match(personRegistry, familyRegistry)
     logger.warning(f"unmatched persons: {unmatched}")
     return merge(matched), unmatched, families
+
+
+def parsed_to_gedcom(path: pathlib.Path, parsed):
+    merges, unmatched, families = parsed
+    fam_records = set()
+    indi_records = set()
+    for fam_id in families.keys():
+
+        famrecord = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD()
+        famrecord.FAM = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM(XREF_FAM(fam_id))
+
+        parent_ids = families[fam_id][_PARENT_IN_FAMILY]
+        if parent_ids:
+            famrecord.FAM.HUSB = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM.HUSB(parent_ids.pop())
+        if parent_ids:
+            famrecord.FAM.WIFE = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM.WIFE(parent_ids.pop())
+        if parent_ids:
+            logger.warning(f"unselected parents:{[merges[parent_id] for parent_id in parent_ids]}")
+
+        for child_id in families[fam_id][_CHILD_IN_FAMILY]:
+            if not isinstance(famrecord.FAM.CHILs, list):
+                famrecord.FAM.CHILs: LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM.CHILs = list()
+            famrecord.FAM.CHILs.append(CHIL(child_id))
+        fam_records.add(famrecord)
+    for person_id, person in merges.items():
+        indirecord = LINEAGE_LINKED_RECORDs.INDIVIDUAL_RECORD()
+        indirecord.INDI = LINEAGE_LINKED_RECORDs.INDIVIDUAL_RECORD.INDI(XREF_INDI(person_id))
+        if (_FIRST_NAMES in person) and (_LAST_NAMES in person):
+            if not isinstance(indirecord.INDI.PERSONAL_NAME_STRUCTUREs, list):
+                indirecord.INDI.PERSONAL_NAME_STRUCTUREs = list()
+            name = PERSONAL_NAME_STRUCTURE()
+            name.NAME = PERSONAL_NAME_STRUCTURE.NAME(
+                " ".join(person[_FIRST_NAMES]) + "/" + " ".join(person[_LAST_NAMES]) + "/"
+            )
+            name.NAME.PERSONAL_NAME_PIECES = PERSONAL_NAME_PIECES()
+            name.NAME.PERSONAL_NAME_PIECES.GIVN = PERSONAL_NAME_PIECES.GIVN(" ".join(person[_FIRST_NAMES]))
+            name.NAME.PERSONAL_NAME_PIECES.SURN = PERSONAL_NAME_PIECES.SURN(" ".join(person[_LAST_NAMES]))
+            indirecord.INDI.PERSONAL_NAME_STRUCTUREs.append(name)
+        if _NAME in person:
+            if not isinstance(indirecord.INDI.PERSONAL_NAME_STRUCTUREs, list):
+                indirecord.INDI.PERSONAL_NAME_STRUCTUREs = list()
+            name = PERSONAL_NAME_STRUCTURE()
+            name.NAME = str(person[_NAME][0])
+            indirecord.INDI.PERSONAL_NAME_STRUCTUREs.append(name)
+        if _BIRTHDAY in person:
+            if not isinstance(indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs, list):
+                indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs = list()
+            birth = INDIVIDUAL_EVENT_STRUCTUREs.BIRT()
+            birth.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
+            birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
+            birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE(str(person[_BIRTHDAY][0]))
+            if _BIRTHPLACE in person:
+                birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
+                birth.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
+                    str(person[_BIRTHPLACE][0])
+                )
+            indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs.append(birth)
+        if _DEATHDAY in person:
+            if not isinstance(indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs, list):
+                indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs = list()
+            death = INDIVIDUAL_EVENT_STRUCTUREs.DEAT(NULL())
+            death.INDIVIDUAL_EVENT_DETAIL = INDIVIDUAL_EVENT_DETAIL()
+            death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL = EVENT_DETAIL()
+            death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.DATE = EVENT_DETAIL.DATE(str(person[_DEATHDAY][0]))
+            if _DEATHPLACE in person:
+                death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE = PLACE_STRUCTURE()
+                death.INDIVIDUAL_EVENT_DETAIL.EVENT_DETAIL.PLACE_STRUCTURE.PLAC = PLACE_STRUCTURE.PLAC(
+                    str(person[_DEATHPLACE][0])
+                )
+            indirecord.INDI.INDIVIDUAL_EVENT_STRUCTUREs.append(death)
+        if _CHILD_IN_FAMILY in person and person[_CHILD_IN_FAMILY]:
+            if not isinstance(indirecord.INDI.CHILD_TO_FAMILY_LINKs, list):
+                indirecord.INDI.CHILD_TO_FAMILY_LINKs = list()
+            for fam_id in person[_CHILD_IN_FAMILY]:
+                child_to_family_link = CHILD_TO_FAMILY_LINK()
+                child_to_family_link.FAMC = CHILD_TO_FAMILY_LINK.FAMC(fam_id)
+                indirecord.INDI.CHILD_TO_FAMILY_LINKs.append(child_to_family_link)
+        if _PARENT_IN_FAMILY in person and person[_PARENT_IN_FAMILY]:
+            if not isinstance(indirecord.INDI.SPOUSE_TO_FAMILY_LINKs, list):
+                indirecord.INDI.SPOUSE_TO_FAMILY_LINKs = list()
+            for fam_id in person[_PARENT_IN_FAMILY]:
+                spouse_to_family_link = SPOUSE_TO_FAMILY_LINK()
+                spouse_to_family_link.FAMS = SPOUSE_TO_FAMILY_LINK.FAMS(fam_id)
+                indirecord.INDI.SPOUSE_TO_FAMILY_LINKs.append(spouse_to_family_link)
+        indi_records.add(indirecord)
+
+    ex = LINEAGE_LINKED_GEDCOM_FILE()
+    ex.GEDCOM_HEADER = GEDCOM_HEADER()
+    ex.GEDCOM_HEADER.HEAD = GEDCOM_HEADER.HEAD()
+    ex.GEDCOM_HEADER.HEAD.GEDC = GEDCOM_HEADER.HEAD.GEDC()
+    ex.GEDCOM_HEADER.HEAD.GEDC.VERS = GEDCOM_HEADER.HEAD.GEDC.VERS("5.5.5")
+    ex.GEDCOM_HEADER.HEAD.GEDC.FORM = GEDCOM_HEADER.HEAD.GEDC.FORM("LINEAGE-LINKED")
+    ex.GEDCOM_HEADER.HEAD.GEDC.FORM.VERS = GEDCOM_HEADER.HEAD.GEDC.FORM.VERS("5.5.5")
+    ex.GEDCOM_HEADER.HEAD.CHAR = GEDCOM_HEADER.HEAD.CHAR("UTF-8")
+    ex.GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION()
+    ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR(
+        "genealogy.gedcomish"
+    )
+    ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.VERS = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.VERS(
+        pkg_resources.get_distribution("genealogy").version
+    )
+    ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.DATA = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.DATA(
+        path.parent.name + ": " + str(path.name)
+    )
+    ex.GEDCOM_FORM_HEADER_EXTENSION.DATE = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE(
+        datetime.datetime.now()
+    )
+    ex.GEDCOM_FORM_HEADER_EXTENSION.DATE.TIME = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.DATE.TIME(
+        datetime.datetime.now()
+    )
+    subm_id = XREF_SUBM(create=True)
+    ex.GEDCOM_FORM_HEADER_EXTENSION.SUBM = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SUBM(subm_id)
+    ex.FORM_RECORDS = FORM_RECORDS()
+    ex.FORM_RECORDS.SUBMITTER_RECORD = SUBMITTER_RECORD()
+    ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM = SUBMITTER_RECORD.SUBM(subm_id)
+    ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.NAME = SUBMITTER_RECORD.SUBM.NAME(socket.gethostname())
+    ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs = list()
+    ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(fam_records)
+    ex.FORM_RECORDS.LINEAGE_LINKED_RECORDs.extend(indi_records)
+    ex.GEDCOM_TRAILER = GEDCOM_TRAILER()
+    ex.GEDCOM_TRAILER.TRLR = GEDCOM_TRAILER.TRLR()
+    lines = GEDCOM_LINES()
+    lines = ex(lines=lines, delta_level=0)
+    result = lines(0)
+    outfile = path.with_suffix(".ged")
+    outfile.write_text(result, encoding="utf-8-sig")
+    logger.info(f"GEDCOM output: {outfile}")
