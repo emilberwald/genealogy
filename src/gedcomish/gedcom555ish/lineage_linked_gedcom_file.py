@@ -193,7 +193,16 @@ class SOURCE_CITATION(Substructure, delta_level=-1):
 
 
 class ADDRESS_STRUCTURE(Substructure, delta_level=0):
+    """
+        ADDRESS_STRUCTURE.ADDR
+    """
     class ADDR(Tag, Substructure, delta_level=0):
+        """
+            ADDRESS_STRUCTURE.ADDR.ADR1
+            ADDRESS_STRUCTURE.ADDR.ADR2
+            ADDRESS_STRUCTURE.ADDR.ADR3
+            ADDRESS_STRUCTURE.ADDR.ADR4
+        """
         class ADR1(ADDRESS_LINE1, Substructure, delta_level=1):
             pass
 
@@ -215,25 +224,22 @@ class ADDRESS_STRUCTURE(Substructure, delta_level=0):
         class CTRY(ADDRESS_COUNTRY, Substructure, delta_level=1):
             pass
 
-    class PHON(PHONE_NUMBER, Substructure, delta_level=-1):
+    class PHON(PHONE_NUMBER, Substructure, delta_level=0):
         pass
 
     PHONs = Iterable[PHON]
 
-    # TODO: move outside?
-    class EMAIL(ADDRESS_EMAIL, Substructure, delta_level=-1):
+    class EMAIL(ADDRESS_EMAIL, Substructure, delta_level=0):
         pass
 
     EMAILs = Iterable[EMAIL]
 
-    # TODO: move outside?
-    class FAX(ADDRESS_FAX, Substructure, delta_level=-1):
+    class FAX(ADDRESS_FAX, Substructure, delta_level=0):
         pass
 
     FAXs = Iterable[FAX]
 
-    # TODO: move outside?
-    class WWW(ADDRESS_WEB_PAGE, Substructure, delta_level=-1):
+    class WWW(ADDRESS_WEB_PAGE, Substructure, delta_level=0):
         pass
 
     WWWs = Iterable[WWW]
@@ -761,12 +767,26 @@ class SUBMITTER_RECORD(Substructure, delta_level=0):
 
 
 class GEDCOM_HEADER(Substructure, delta_level=0):
+    """
+        GEDCOM_HEADER.HEAD
+    """
     class HEAD(Tag, Substructure, delta_level=0):
+        """
+            GEDCOM_HEADER.HEAD.GEDC
+            GEDCOM_HEADER.HEAD.CHAR
+        """
         class GEDC(Tag, Substructure, delta_level=1):
+            """
+                GEDCOM_HEADER.HEAD.GEDC.VERS
+                GEDCOM_HEADER.HEAD.GEDC.FORM
+            """
             class VERS(GEDCOM_VERSION_NUMBER, Substructure, delta_level=1):
                 pass
 
             class FORM(GEDCOM_FORM, Substructure, delta_level=1):
+                """
+                    GEDCOM_HEADER.HEAD.GEDC.FORM.VERS
+                """
                 class VERS(GEDCOM_VERSION_NUMBER, Substructure, delta_level=1):
                     pass
 
@@ -820,6 +840,10 @@ class GEDCOM_FORM_HEADER_EXTENSIONs(Substructure, delta_level=None):
 
 
 class FORM_RECORDS(Substructure, delta_level=-1):
+    """
+        SUBMITTER_RECORD
+        Iterable[LINEAGE_LINKED_RECORDs.LINEAGE_LINKED_RECORD]
+    """
     SUBMITTER_RECORD = SUBMITTER_RECORD
     LINEAGE_LINKED_RECORDs = Iterable[LINEAGE_LINKED_RECORDs.LINEAGE_LINKED_RECORD]
 
@@ -830,6 +854,12 @@ class GEDCOM_TRAILER(Substructure, delta_level=0):
 
 
 class LINEAGE_LINKED_GEDCOM_FILE(Substructure, delta_level=-1):
+    """
+        GEDCOM_HEADER
+        GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION
+        FORM_RECORDS
+        GEDCOM_TRAILER
+    """
     GEDCOM_HEADER = GEDCOM_HEADER
     GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION
     FORM_RECORDS = FORM_RECORDS

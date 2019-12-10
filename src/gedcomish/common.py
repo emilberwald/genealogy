@@ -369,19 +369,6 @@ class Substructure(Common):
         else:
             yield from (getattr(nested, attr) for attr in dir(nested) if isinstance(getattr(nested, attr), base))
 
-    @staticmethod
-    def _is_reference_included(nested):
-        for base in nested.__class__.__bases__:
-            yield fr"{base.__name__}s\s*="
-            yield fr"=\s*{base.__class__.__name__}"
-            yield fr"=\s*Iterable\[{base.__class__.__name__}s[.]{base.__class__.__name__}\]"
-        yield fr"{nested.__class__.__name__}\s*="
-        yield fr"{nested.__class__.__name__}s\s*="
-        yield fr"=\s*{nested.__class__.__name__}"
-        yield fr"=\s*{nested.__class__.__qualname__}"
-        yield fr"=\s*Iterable\[{nested.__class__.__name__}\]"
-        yield fr"=\s*Iterable\[{nested.__class__.__qualname__}\]"
-
     def handle_nested(self, *, lines: GEDCOM_LINES, nested: Union[Primitive, "Substructure"], delta_level: int):
         if hasattr(nested, "delta_level") and getattr(nested, "delta_level"):
             nested_level = delta_level + getattr(nested, "delta_level")
@@ -441,7 +428,7 @@ class Substructure(Common):
                                     blacklist.append(arg)
                                     continue
                     elif hasattr(nested, "kwargs") and getattr(nested, "kwargs"):
-                        if (not tag_value and isinstance(nested, Primitive)):
+                        if not tag_value and isinstance(nested, Primitive):
                             logger.debug(f"<tag-str-of-self-for-{nested}>")
                             tag_value = nested
                             blacklist.append(nested)
@@ -505,44 +492,38 @@ class Substructure(Common):
             delta_level = delta_level + getattr(self, "delta_level")
             logger.debug(f"![{delta_level}\t{self.__class__.__qualname__} => {getattr(self, 'delta_level'):+d}]")
 
-        nesteds = tuple(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
+        nesteds = list(self.instances_of_nested_classes(XREF_ID, Primitive, Substructure))
 
-        clssource = getsource(self.__class__, nesteds)
-
-        nesteds = sorted(
-            nesteds,
-            key=lambda nested, clssource=clssource: result.start()
-            if (
-                result := re.search(
-                    r"|".join(
-                        (fr"class\s+{nested.__class__.__name__}", *Substructure._is_reference_included(nested=nested))
-                    ),
-                    clssource,
-                )
+        if self.__class__.__doc__:
+            nesteds = sorted(
+                nesteds,
+                key=lambda nested, doc=self.__class__.__doc__: (result.start(), nested.__class__.__qualname__)
+                if (result := re.search(fr"{nested.__class__.__qualname__}", doc))
+                else (len(doc), nested.__class__.__qualname__),
             )
-            else float("inf"),
-        )
-        logger.debug(f"<nesteds:{nesteds}>\n{'*'*80}\n{clssource}\n{'*'*80}\n")
+        else:
+            nesteds = sorted(nesteds, key=lambda nested: nested.__class__.__qualname__)
+
+        logger.debug(f"<nesteds:{nesteds}>")
         for nested in nesteds:
 
             logger.debug(f"<nested:{nested.__class__.__qualname__}:{nested}>")
-            is_iteration_included = isinstance(nested, Iterable)
-            is_reference_included = re.search(r"|".join(Substructure._is_reference_included(nested=nested)), clssource)
+            is_iterable = isinstance(nested, Iterable)
+            is_qualname_nested = nested.__class__.__qualname__.startswith(self.__class__.__qualname__)
 
-            if is_iteration_included:
-                logger.debug("<is_iteration_included>")
+            if is_iterable:
                 for subnested in nested:
-                    logger.debug(f"<subnested:handle_nested@+1:{delta_level+1}>")
+                    logger.debug(f"<is_iterable:subnested:handle_nested@+1:{delta_level+1}>")
                     self.handle_nested(lines=lines, nested=subnested, delta_level=delta_level + 1)
-            elif is_reference_included:
+            elif is_qualname_nested:
+                logger.debug(f"<is_qualname_nested:handle_nested@{delta_level}>")
+                self.handle_nested(lines=lines, nested=nested, delta_level=delta_level)
+            else:
                 if isinstance(nested, Substructure):
-                    logger.debug(f"<is_reference_included:handle_nested@+1:{delta_level+1}>")
+                    logger.debug(f"<is_attribute:handle_nested@+1:{delta_level+1}>")
                     self.handle_nested(lines=lines, nested=nested, delta_level=delta_level + 1)
                 else:
-                    logger.debug(f"<is_reference_included:skip:{nested}>")
-            else:
-                logger.debug(f"<else:handle_nested@{delta_level}>")
-                self.handle_nested(lines=lines, nested=nested, delta_level=delta_level)
+                    logger.debug(f"<is_attribute:skip:{nested}>")
 
         return lines
 

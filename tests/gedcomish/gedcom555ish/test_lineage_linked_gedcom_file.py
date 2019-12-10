@@ -6,6 +6,8 @@ import pathlib
 import tempfile
 from typing import List
 
+import pytest
+
 import gedcomish.configure
 from gedcomish.common import GEDCOM_LINES, NULL
 from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
@@ -55,39 +57,26 @@ def NamedTemporaryFile(*args, **kwargs):
 
 
 class TestExampleFiles:
-    def test_minimal555(self):
-        minimal555 = LINEAGE_LINKED_GEDCOM_FILE()
-        minimal555.GEDCOM_HEADER = GEDCOM_HEADER()
-        minimal555.GEDCOM_HEADER.HEAD = GEDCOM_HEADER.HEAD()
-        minimal555.GEDCOM_HEADER.HEAD.GEDC = GEDCOM_HEADER.HEAD.GEDC()
-        minimal555.GEDCOM_HEADER.HEAD.GEDC.VERS = GEDCOM_HEADER.HEAD.GEDC.VERS("5.5.5")
-        minimal555.GEDCOM_HEADER.HEAD.GEDC.FORM = GEDCOM_HEADER.HEAD.GEDC.FORM("LINEAGE-LINKED")
-        minimal555.GEDCOM_HEADER.HEAD.GEDC.FORM.VERS = GEDCOM_HEADER.HEAD.GEDC.FORM.VERS("5.5.5")
-        minimal555.GEDCOM_HEADER.HEAD.CHAR = GEDCOM_HEADER.HEAD.CHAR("UTF-8")
-        minimal555.GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION()
-        minimal555.GEDCOM_FORM_HEADER_EXTENSION.SOUR = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR(
+    def get_minimal555(self):
+        ex = LINEAGE_LINKED_GEDCOM_FILE()
+        ex.GEDCOM_HEADER = GEDCOM_HEADER()
+        ex.GEDCOM_HEADER.HEAD = GEDCOM_HEADER.HEAD()
+        ex.GEDCOM_HEADER.HEAD.GEDC = GEDCOM_HEADER.HEAD.GEDC()
+        ex.GEDCOM_HEADER.HEAD.GEDC.VERS = GEDCOM_HEADER.HEAD.GEDC.VERS("5.5.5")
+        ex.GEDCOM_HEADER.HEAD.GEDC.FORM = GEDCOM_HEADER.HEAD.GEDC.FORM("LINEAGE-LINKED")
+        ex.GEDCOM_HEADER.HEAD.GEDC.FORM.VERS = GEDCOM_HEADER.HEAD.GEDC.FORM.VERS("5.5.5")
+        ex.GEDCOM_HEADER.HEAD.CHAR = GEDCOM_HEADER.HEAD.CHAR("UTF-8")
+        ex.GEDCOM_FORM_HEADER_EXTENSION = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION()
+        ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR(
             "gedcom.org"
         )
-        minimal555.FORM_RECORDS = FORM_RECORDS()
-        minimal555.FORM_RECORDS.SUBMITTER_RECORD = SUBMITTER_RECORD()
-        minimal555.FORM_RECORDS.SUBMITTER_RECORD.SUBM = SUBMITTER_RECORD.SUBM(XREF_SUBM("U"))
-        minimal555.FORM_RECORDS.SUBMITTER_RECORD.SUBM.NAME = SUBMITTER_RECORD.SUBM.NAME("gedcom.org")
-        minimal555.GEDCOM_TRAILER = GEDCOM_TRAILER()
-        minimal555.GEDCOM_TRAILER.TRLR = GEDCOM_TRAILER.TRLR()
-        lines = GEDCOM_LINES()
-        lines = minimal555(lines=lines, delta_level=0)
-        result = lines(0)
-        logger.info(result)
-        with NamedTemporaryFile(suffix=".ged") as fp:
-            fp.close()
-            file = pathlib.Path(fp.name)
-            file.write_text(result, encoding="utf-8-sig")
-            actual = file.read_text()
-            expected = (
-                pathlib.Path(inspect.getframeinfo(inspect.currentframe()).filename).resolve().parent
-                / pathlib.Path("MINIMAL555.GED")
-            ).read_text()
-            assert actual == expected
+        ex.FORM_RECORDS = FORM_RECORDS()
+        ex.FORM_RECORDS.SUBMITTER_RECORD = SUBMITTER_RECORD()
+        ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM = SUBMITTER_RECORD.SUBM(XREF_SUBM("U"))
+        ex.FORM_RECORDS.SUBMITTER_RECORD.SUBM.NAME = SUBMITTER_RECORD.SUBM.NAME("gedcom.org")
+        ex.GEDCOM_TRAILER = GEDCOM_TRAILER()
+        ex.GEDCOM_TRAILER.TRLR = GEDCOM_TRAILER.TRLR()
+        return ex
 
     def get_555sample(self):
         ex = LINEAGE_LINKED_GEDCOM_FILE()
@@ -367,9 +356,7 @@ class TestExampleFiles:
         ex.GEDCOM_TRAILER.TRLR = GEDCOM_TRAILER.TRLR()
         return ex
 
-    def test_555sample(self):
-        ex = self.get_555sample()
-
+    def check_similarity(self, ex, case_insensitive, granularity, name):
         lines = GEDCOM_LINES()
         lines = ex(lines=lines, delta_level=0)
         result = lines(0)
@@ -381,12 +368,33 @@ class TestExampleFiles:
             actual = file.read_text()
             expected = (
                 pathlib.Path(inspect.getframeinfo(inspect.currentframe()).filename).resolve().parent
-                / pathlib.Path("555SAMPLE-shuffled-uppercased.GED")
+                / pathlib.Path(name)
             ).read_text()
-            actual_lines = set(actual.splitlines())
-            expected_lines = set(expected.splitlines())
-            assert actual_lines == expected_lines
-            assert actual == expected
+
+            if case_insensitive:
+                expected = expected.casefold()
+                actual = actual.casefold()
+
+            if granularity == "set-of-lines":
+                actual_lines = set(actual.splitlines())
+                expected_lines = set(expected.splitlines())
+                assert actual_lines == expected_lines
+            elif granularity == "list-of-lines":
+                actual_lines = actual.splitlines()
+                expected_lines = expected.splitlines()
+                assert actual_lines == expected_lines
+            elif granularity == "text":
+                assert actual == expected
+
+    @pytest.mark.parametrize("case_insensitive", [True, False])
+    @pytest.mark.parametrize("granularity", ["set-of-lines", "list-of-lines", "text"])
+    def test_555sample(self, case_insensitive, granularity):
+        self.check_similarity(self.get_555sample(), case_insensitive, granularity, "555SAMPLE.GED")
+
+    @pytest.mark.parametrize("case_insensitive", [True, False])
+    @pytest.mark.parametrize("granularity", ["set-of-lines", "list-of-lines", "text"])
+    def test_minimal555(self, case_insensitive, granularity):
+        self.check_similarity(self.get_minimal555(), case_insensitive, granularity, "MINIMAL555.GED")
 
 
 def _address_structure():
