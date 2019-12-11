@@ -83,6 +83,33 @@ _SEX_UNDETERMINED = "U"
 _SOURCE_TEXT_FAMILY = "source_text_family"
 
 
+def split_sections(text, registry):
+    text, sakregister = re.split(text, r"<CENTER><FONT SIZE=5>Sakregister</FONT></CENTER>")
+    text, ortregister = re.split(text, r"<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>")
+    text, personregister = re.split(text, r"<CENTER><FONT SIZE=5>Personregister</FONT>")
+    parts = re.split(r"<CENTER><FONT SIZE=5>\s*Familj\s*[0-9]+</FONT></CENTER>", text)
+    families = parts[1:]
+    for family_id, family in enumerate(families):
+        parts = re.split(r"(Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo).*?med")
+        adult = parts[0]
+        partners = parts[1:-2]
+        offspring = parts[-1]
+        offspring_per_partner = re.split(
+            r"Barn:|Barn i giftet:|Barn i första giftet:|Barn i andra giftet:|Barn i tredje giftet:|Barn utan känd moder:|Barn utan känd fader:|Barn med .*?:",
+            offspring,
+        )
+        registry[family_id] = {
+            "family": family,
+            "adult": adult,
+            "partners": {partner for partner in enumerate(partners)},
+            "children": {
+                (partner_no, children)
+                for partner_no, partner_offspring in enumerate(offspring_per_partner)
+                for children in re.split(r"\*", partner_offspring)
+            },
+        }
+
+
 class PersonRegistry:
     """
     Searches for persons in the person registry.
