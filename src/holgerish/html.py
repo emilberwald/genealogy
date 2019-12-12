@@ -82,32 +82,300 @@ _SEX_FEMALE = "F"
 _SEX_UNDETERMINED = "U"
 _SOURCE_TEXT_FAMILY = "source_text_family"
 
+SAKREGISTER = "<CENTER><FONT SIZE=5>Sakregister</FONT></CENTER>"
+ORTREGISTER = "<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>"
+PERSONREGISTER = "<CENTER><FONT SIZE=5>Personregister</FONT></CENTER>"
+FAMILY_REGEX = re.compile(
+    r"""
+    <CENTER>
+    <FONT\sSIZE=5>
+    \s*?
+    Familj
+    \s*?
+    (?P<ID>[0-9]+)
+    <\/FONT>
+    <\/CENTER>
+    """,
+    re.VERBOSE,
+)
+FAMILY_RELATION_REGEX = re.compile(
+    r"""
+    (?P<RELATIONTYPE>Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo)
+    (
+        \s*?
+        (?P<DATEMODIFIER>.+?)?
+        \s+?
+        (?P<RELATIONDAY>[0-9-.xX]+)
+        (
+            \s+?i\s+?
+            (?P<RELATIONPLACE>.+?)
+        )?
+        \s+
+        |(?P<RELATIONDETAIL>.+?)
+        \s+
+    )?
+    med
+    """,
+    re.VERBOSE,
+)
+FAMILY_PERSON_REGEX = re.compile(
+    r"""
+            (
+                \s*
+                (?P<IS_CHILD>[*])
+                \s*
+            )?
+            <B>
+            (?P<FIRSTNAMES>.*?)
+            (,
+                (?P<SECONDNAMES>.*?)
+            )?
+            <\/B>
+            \s*
+            (
+                \(
+                    \s*
+                    från\s+?familj
+                    \s*
+                    <A\sHREF=\#(?P<FROM_HREF>[0-9]+)>
+                    (?P<FROM_REF>[0-9]+)
+                    <\/A>
+                \)
+            )?
+            (
+                ,
+                \s*?
+                född
+                \s+?
+                (?P<BIRTHDAY>[0-9-.xX]+)
+                (
+                    \s+?i\s+?
+                    (?P<BIRTHPLACE>.+?)
+                )?
+            )?
+            (
+                ,
+                \s*?
+                död
+                \s+?
+                (?P<DEATHDAY>[0-9-.xX]+)
+                (
+                    \s+?i\s+?
+                    (?P<DEATHPLACE>.+?)
+                )?
+            )?
+            (
+                ,
+                \s*?
+                se\s+?familj
+                \s+?
+                <A\sHREF=\#(?P<SEE_HREF>[0-9]+)>
+                (?P<SEE_REF>[0-9]+)
+                <\/A>
+            )?
+            [.]
+            (
+                \s*?
+                Bosatt
+                (
+                    \s+?i\s+?
+                    (?P<HOMEPLACE>[^.]+?)
+                )
+                [.]
+            )?
+            (
+                \s*?
+                (?P<DETAILS>[^.]+?)
+                (
+                    \s+?i\s+?
+                    (?P<DETAILSPLACE>[^.]+?)
+                )?
+                [.]
+            )?
+            (?P<NOTES>.*)
+            """,
+    re.VERBOSE,
+)
+
+FAMILY_CHILDREN_SECTION_HEADER = re.compile(
+    r"""
+        Barn:
+        |Barn\s+i(?P<MARRIAGE_NO>.+?)giftet:
+        |Barn\s+utan\s+känd\s+(?P<PARTNER_SEX>moder|fader):
+        |Barn\s+med\s+(?P<PARTNER_NAME>[^:]+):
+        """,
+    re.VERBOSE,
+)
+
+ANCHOR_REGEX = re.compile(
+    r"""
+    <A\sHREF=\#(?P<HREF>[0-9]+)>
+    (?P<REF>[0-9]+)
+    <\/A>
+    """,
+    re.VERBOSE,
+)
+PERSONREGISTRY_PERSON_REGEX = re.compile(
+    r"""
+            <B>
+            (?P<FIRSTNAMES>.*?)
+            (,
+                (?P<SECONDNAMES>.*?)
+            )?
+            <\/B>
+            (
+                \s+?f\s+?
+                (?P<BIRTHDAY>[0-9-.xX]+)
+            )?
+            (
+                \s+?i\s+?
+                (?P<BIRTHPLACE>.+)
+            )?
+            """,
+    re.VERBOSE,
+)
+
+
+def section_parts(sections: list, heading):
+    for section in sections:
+        section = section.replace("<P>", "")  # TODO: does <P> signify anything?
+        lines = section.split("<BR>")
+        assert heading in lines[0]
+        for line_no, line in enumerate(line.strip() for line in lines[1:]):
+            if (end := line.find("<A HREF=")) != -1:
+                refs = list()
+                for refpart in line[end:].split(","):
+                    match = ANCHOR_REGEX.search(refpart)
+                    assert match["HREF"] == match["REF"]
+                    refs.append(match["REF"])
+                yield line[0:end].strip(), refs
+            elif line:
+                raise ValueError(f"section without family references: {line}")
+            else:
+                logger.warning(f"empty line in {heading} at {line_no}: {line}")
+
+
+def refine_detail_sections(sections: list):
+    """
+        returns a defaultdict(list),
+        which maps family id to a list of details
+    """
+    result = defaultdict(list)
+    for text, refs in section_parts(sections, SAKREGISTER):
+        for ref in refs:
+            result[ref].append(text)
+    return result
+
+
+def refine_location_sections(sections: list):
+    """
+        returns a defaultdict(list),
+        which maps family id to a list of tuples, each tuple element signifying a part of an address,
+        NOTE:
+        location parts may have whitespace or comma signs between them in the family sections.
+    """
+    result = defaultdict(list)
+    for text, refs in section_parts(sections, ORTREGISTER):
+        for ref in refs:
+            result[ref].append(tuple(text.split()))
+    return result
+
+
+def refine_person_sections(sections: list):
+    """
+        returns a defaultdict(list),
+        which maps family id to a dict, with keys "name", "firstnames" and "surnames"
+    """
+    result = defaultdict(list)
+    for text, refs in section_parts(sections, PERSONREGISTER):
+        for ref in refs:
+            if (m := PERSONREGISTRY_PERSON_REGEX.search(text)) :
+                if m["SECONDNAMES"]:
+                    result[ref].append(
+                        dict(
+                            firstnames=m["SECONDNAMES"].split() if m["SECONDNAMES"] else None,
+                            surnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
+                            birthday=m["BIRTHDAY"],
+                            birthplace=m["BIRTHPLACE"].split() if m["BIRTHPLACE"] else None,
+                        )
+                    )
+                else:
+                    result[ref].append(
+                        dict(
+                            firstnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
+                            surnames=None,
+                            birthday=m["BIRTHDAY"],
+                            birthplace=m["BIRTHPLACE"].split() if m["BIRTHPLACE"] else None,
+                        )
+                    )
+    return result
+
 
 def split_sections(text, registry):
-    text, sakregister = re.split(text, r"<CENTER><FONT SIZE=5>Sakregister</FONT></CENTER>")
-    text, ortregister = re.split(text, r"<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>")
-    text, personregister = re.split(text, r"<CENTER><FONT SIZE=5>Personregister</FONT>")
-    parts = re.split(r"<CENTER><FONT SIZE=5>\s*Familj\s*[0-9]+</FONT></CENTER>", text)
-    families = parts[1:]
-    for family_id, family in enumerate(families):
-        parts = re.split(r"(Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo).*?med")
-        adult = parts[0]
-        partners = parts[1:-2]
-        offspring = parts[-1]
-        offspring_per_partner = re.split(
-            r"Barn:|Barn i giftet:|Barn i första giftet:|Barn i andra giftet:|Barn i tredje giftet:|Barn utan känd moder:|Barn utan känd fader:|Barn med .*?:",
-            offspring,
-        )
-        registry[family_id] = {
-            "family": family,
-            "adult": adult,
-            "partners": {partner for partner in enumerate(partners)},
-            "children": {
-                (partner_no, children)
-                for partner_no, partner_offspring in enumerate(offspring_per_partner)
-                for children in re.split(r"\*", partner_offspring)
-            },
-        }
+    sections = re.split("<HR WIDTH=500>", text)
+    family_sections = dict()
+    person_sections = list()
+    detail_sections = list()
+    person_sections = list()
+    location_sections = list()
+    unknown_sections = list()
+    for section in sections:
+        if SAKREGISTER in section:
+            detail_sections.append(section)
+        elif ORTREGISTER in section:
+            location_sections.append(section)
+        elif PERSONREGISTER in section:
+            person_sections.append(section)
+        elif (m := FAMILY_REGEX.search(section)) :
+            if m["ID"] in family_sections:
+                raise ValueError("Family already present!")
+            family_sections[m["ID"]] = section
+        else:
+            unknown_sections.append(section)
+    del sections, section, m
+    details = refine_detail_sections(detail_sections)
+    del detail_sections
+    locations = refine_location_sections(location_sections)
+    del location_sections
+    persons = refine_person_sections(person_sections)
+
+    for family_id, family in family_sections.items():
+        parts = family.split("<P>")
+        assert FAMILY_REGEX.search(parts[0])
+        for part in parts[1:]:
+            subparts = part.split("<BR>")
+            nonmatches = list()
+            for subpart in (subpart for subpart in (" ".join(subpart.split()) for subpart in subparts) if subpart):
+                if (m := FAMILY_RELATION_REGEX.search(subpart)) :
+                    value = m.groupdict()
+                    pass
+                elif (m := FAMILY_PERSON_REGEX.search(subpart)) :
+                    value = m.groupdict()
+                    pass
+                elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(subpart)) :
+                    value = m.groupdict()
+                    pass
+                else:
+                    value = subpart
+                    nonmatches.append(value)
+                    pass
+            unmatched = " ".join(nonmatches)
+            nonmatches = list()
+            if (m := FAMILY_RELATION_REGEX.search(unmatched)) :
+                value = m.groupdict()
+                pass
+            elif (m := FAMILY_PERSON_REGEX.search(unmatched)) :
+                value = m.groupdict()
+                pass
+            elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(unmatched)) :
+                value = m.groupdict()
+                pass
+            else:
+                value = unmatched
+                nonmatches.append(unmatched)
+                pass
+
+            pass
 
 
 class PersonRegistry:
@@ -139,7 +407,7 @@ class PersonRegistry:
     @staticmethod
     def _gen_registered_person(personregister):
         pattern = re.compile(
-            r"<B>(?P<name>[^<]+?)</B>\s+f\s+(?P<bday>[0-9-\\.xX]+?)(\s+?i\s+?(?P<bplace>[^<]+?))?\s+?(?P<families><[^\r\n]*?)?<BR>",
+            r"<B>(?P<name>[^<]+?)</B>\s+f\s+(?P<bday>[0-9-\\.xX]+?)(\s+?i\s+?(?P<bplace>.*?))?\s+?(?P<families><[^\r\n]*?)?<BR>",
             flags=re.DOTALL,
         )
         yield from (m.groupdict() for m in pattern.finditer(personregister["Personregister"]))
@@ -533,3 +801,4 @@ def parsed_to_gedcom(path: pathlib.Path, parsed):
     outfile = path.with_suffix(".ged")
     outfile.write_text(result, encoding="utf-8-sig")
     logger.info(f"GEDCOM output: {outfile}")
+
