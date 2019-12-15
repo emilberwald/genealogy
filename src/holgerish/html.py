@@ -5,8 +5,8 @@ import pathlib
 import re
 import socket
 import uuid
-from collections import OrderedDict, defaultdict
-from typing import DefaultDict, List
+from collections import OrderedDict, defaultdict, namedtuple
+from typing import DefaultDict, Dict, List, Set
 
 import pkg_resources
 
@@ -35,24 +35,6 @@ from gedcomish.gedcom555ish.primitives import XREF_FAM, XREF_INDI
 logger = logging.getLogger(__name__)
 
 
-def parse_individual(text):
-    pattern = re.compile(
-        r"<B>(?P<name>[^<]+?)</B>"
-        + r".*?född.*?"
-        + r"(?P<bday>[0-9-\.xX]+)"
-        + r"((<BR>|\s)+?i\s+?"
-        + r"(?P<bplace>[^)]+\))"
-        + r")?"
-        + r".*?(död.*?"
-        + r"(?P<dday>[0-9-\.xX]+)"
-        + r".*?"
-        + r"((<BR>|\s)+?i\s+?"
-        + r"(?P<dplace>[^)]+\))"
-        + r")?|<P>)"
-    )
-    yield from (m.groupdict() for m in pattern.finditer(text))
-
-
 def normalize_date(s):
     s = list(s.ljust(10, "0")[0:10])
     s = [c if c.isdigit() else "0" for c in s]
@@ -64,23 +46,6 @@ def normalize_date(s):
 def normalize_name(s):
     return set(s.replace(",", " ").split())
 
-
-_PERSON_IN_FAMILY = "person_in_family"
-_PARENT_IN_FAMILY = "parent_in_family"
-_CHILD_IN_FAMILY = "child_in_family"
-_NAME = "name"
-_FIRST_NAMES = "first_names"
-_LAST_NAMES = "last_names"
-_BIRTHDAY = "bday"
-_DEATHDAY = "dday"
-_BIRTHPLACE = "bplace"
-_LIVINGPLACE = "lplace"
-_DEATHPLACE = "dplace"
-_SEX = "sex"
-_SEX_MALE = "M"
-_SEX_FEMALE = "F"
-_SEX_UNDETERMINED = "U"
-_SOURCE_TEXT_FAMILY = "source_text_family"
 
 SAKREGISTER = "<CENTER><FONT SIZE=5>Sakregister</FONT></CENTER>"
 ORTREGISTER = "<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>"
@@ -98,6 +63,7 @@ FAMILY_REGEX = re.compile(
     """,
     re.VERBOSE,
 )
+
 FAMILY_RELATION_REGEX = re.compile(
     r"""
     (?P<RELATIONTYPE>Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo)
@@ -255,7 +221,12 @@ def section_parts(sections: list, heading):
                 logger.warning(f"empty line in {heading} at {line_no}: {line}")
 
 
-def refine_detail_sections(sections: list):
+RegistryDetail = namedtuple("RegistryPerson", ("detail",))
+RegistryLocation = namedtuple("RegistryPerson", ("location",))
+RegistryPerson = namedtuple("RegistryPerson", ("firstnames", "surnames", "birthday", "birthplace"))
+
+
+def refine_detail_sections(sections: list) -> DefaultDict[int, List[RegistryDetail]]:
     """
         returns a defaultdict(list),
         which maps family id to a list of details
@@ -263,11 +234,11 @@ def refine_detail_sections(sections: list):
     result = defaultdict(list)
     for text, refs in section_parts(sections, SAKREGISTER):
         for ref in refs:
-            result[ref].append(text)
+            result[int(ref)].append(RegistryDetail(detail=text))
     return result
 
 
-def refine_location_sections(sections: list):
+def refine_location_sections(sections: list) -> DefaultDict[int, List[RegistryLocation]]:
     """
         returns a defaultdict(list),
         which maps family id to a list of tuples, each tuple element signifying a part of an address,
@@ -277,22 +248,18 @@ def refine_location_sections(sections: list):
     result = defaultdict(list)
     for text, refs in section_parts(sections, ORTREGISTER):
         for ref in refs:
-            result[ref].append(tuple(text.split()))
+            result[int(ref)].append(RegistryLocation(location=tuple(text.split())))
     return result
 
 
-def refine_person_sections(sections: list):
-    """
-        returns a defaultdict(list),
-        which maps family id to a dict, with keys "name", "firstnames" and "surnames"
-    """
+def refine_person_sections(sections: list) -> DefaultDict[int, List[RegistryPerson]]:
     result = defaultdict(list)
     for text, refs in section_parts(sections, PERSONREGISTER):
         for ref in refs:
             if (m := PERSONREGISTRY_PERSON_REGEX.search(text)) :
                 if m["SECONDNAMES"]:
-                    result[ref].append(
-                        dict(
+                    result[int(ref)].append(
+                        RegistryPerson(
                             firstnames=m["SECONDNAMES"].split() if m["SECONDNAMES"] else None,
                             surnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
                             birthday=m["BIRTHDAY"],
@@ -300,8 +267,8 @@ def refine_person_sections(sections: list):
                         )
                     )
                 else:
-                    result[ref].append(
-                        dict(
+                    result[int(ref)].append(
+                        RegistryPerson(
                             firstnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
                             surnames=None,
                             birthday=m["BIRTHDAY"],
@@ -311,14 +278,16 @@ def refine_person_sections(sections: list):
     return result
 
 
-def split_sections(text, registry):
+Sections = namedtuple("Sections", ("family", "person", "location", "detail", "unknown"))
+
+
+def find_sections(text) -> Sections:
     sections = re.split("<HR WIDTH=500>", text)
-    family_sections = dict()
-    person_sections = list()
-    detail_sections = list()
-    person_sections = list()
-    location_sections = list()
-    unknown_sections = list()
+    family_sections: Dict[int, str] = dict()
+    person_sections: List[str] = list()
+    detail_sections: List[str] = list()
+    location_sections: List[str] = list()
+    unknown_sections: List[str] = list()
     for section in sections:
         if SAKREGISTER in section:
             detail_sections.append(section)
@@ -328,54 +297,122 @@ def split_sections(text, registry):
             person_sections.append(section)
         elif (m := FAMILY_REGEX.search(section)) :
             if m["ID"] in family_sections:
-                raise ValueError("Family already present!")
-            family_sections[m["ID"]] = section
+                raise ValueError(f"FAMILY: duplicate id: {section}")
+            elif m["ID"]:
+                family_sections[int(m["ID"])] = section
+            else:
+                raise ValueError(f"FAMILY: missing id: {section}")
         else:
             unknown_sections.append(section)
     del sections, section, m
-    details = refine_detail_sections(detail_sections)
-    del detail_sections
-    locations = refine_location_sections(location_sections)
-    del location_sections
-    persons = refine_person_sections(person_sections)
+    logging.warning(f"UNKNOWN SECTIONS:{unknown_sections}")
+    return Sections(
+        family=family_sections,
+        person=person_sections,
+        location=location_sections,
+        detail=detail_sections,
+        unknown=unknown_sections,
+    )
 
-    for family_id, family in family_sections.items():
-        parts = family.split("<P>")
+
+def index_sections(sections: Sections) -> DefaultDict[int, Sections]:
+    details = refine_detail_sections(sections.detail)
+    locations = refine_location_sections(sections.location)
+    persons = refine_person_sections(sections.person)
+
+    indexed_sections = defaultdict(Sections)
+    found_fams: Set[int] = set()
+    found_fams.update(details.keys())
+    found_fams.update(locations.keys())
+    found_fams.update(persons.keys())
+    found_fams.update(sections.family.keys())
+    for fam_id in found_fams:
+        indexed_sections[fam_id] = Sections(
+            family=sections.family[fam_id],
+            person=persons[fam_id],
+            location=locations[fam_id],
+            detail=details[fam_id],
+            unknown=None,
+        )
+    del details, locations, persons, found_fams
+    return indexed_sections
+
+
+def split_sections(text, registry):
+    indexed_sections = index_sections(find_sections(text))
+
+    fam_relations = defaultdict(list)
+    fam_adults = defaultdict(list)
+    fam_children = defaultdict(list)
+    for fam_id, data in indexed_sections.items():
+        parts = data.family.split("<P>")
         assert FAMILY_REGEX.search(parts[0])
+        adults = list()
+        children = list()
+        relations: List[DefaultDict[str, List[Dict[str, str]]]] = list(defaultdict(list))
+        latest_adult_mentioned = None
         for part in parts[1:]:
             subparts = part.split("<BR>")
             nonmatches = list()
             for subpart in (subpart for subpart in (" ".join(subpart.split()) for subpart in subparts) if subpart):
                 if (m := FAMILY_RELATION_REGEX.search(subpart)) :
                     value = m.groupdict()
+                    relations.append(defaultdict(list, relation=[value]))
                     pass
                 elif (m := FAMILY_PERSON_REGEX.search(subpart)) :
                     value = m.groupdict()
-                    pass
+                    if relations:
+                        if value["IS_CHILD"]:
+                            relations[-1]["children"].append(value)
+                            children.append(value)
+                        else:
+                            relations[-1]["partner"].append(value)
+                            adults.append(value)
+                    else:
+                        raise ValueError(f"Unexpected: {relations}: {value} ({subpart})")
                 elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(subpart)) :
                     value = m.groupdict()
-                    pass
+                    if relations:
+                        relations[-1]["union"].append(value)
+                    else:
+                        raise ValueError(f"Unexpected: {relations}: {value} ({subpart})")
                 else:
                     value = subpart
                     nonmatches.append(value)
                     pass
             unmatched = " ".join(nonmatches)
             nonmatches = list()
+
+            family_head = None
             if (m := FAMILY_RELATION_REGEX.search(unmatched)) :
                 value = m.groupdict()
-                pass
-            elif (m := FAMILY_PERSON_REGEX.search(unmatched)) :
-                value = m.groupdict()
-                pass
+                raise ValueError(f"Parser failure: expected all relations to be parsed already: {value}")
             elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(unmatched)) :
                 value = m.groupdict()
-                pass
+                raise ValueError(f"Parser failure: expected all children sections to be parsed already: {value}")
+            elif (m := FAMILY_PERSON_REGEX.search(unmatched)) :
+                value = m.groupdict()
+                if value["IS_CHILD"]:
+                    raise ValueError(f"Parser failure: expected all children to be parsed already: {value}")
+                else:
+                    if family_head:
+                        raise ValueError(
+                            f"Parser failure: expected family head to be only remaining person to parse: {value}"
+                        )
+                    else:
+                        family_head = value
             else:
                 value = unmatched
-                nonmatches.append(unmatched)
-                pass
+                if value:
+                    raise ValueError(f"Parser failure: unrecognized value: {value}")
 
-            pass
+        if (fam_id in fam_relations) or (fam_id in fam_adults) or (fam_id in fam_children):
+            raise ValueError(f"Parser failure: family already present! {adults} {children} {relations}")
+        else:
+            fam_relations[fam_id] = relations
+            fam_adults[fam_id] = adults
+            fam_children[fam_id] = children
+        pass
 
 
 class PersonRegistry:
