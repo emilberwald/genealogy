@@ -1,5 +1,6 @@
 import copy
 import datetime
+import itertools
 import logging
 import pathlib
 import re
@@ -16,19 +17,19 @@ from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
     CHILD_TO_FAMILY_LINK,
     EVENT_DETAIL,
     FORM_RECORDS,
-    GEDCOM_FORM_HEADER_EXTENSIONs,
     GEDCOM_HEADER,
     GEDCOM_TRAILER,
     INDIVIDUAL_EVENT_DETAIL,
-    INDIVIDUAL_EVENT_STRUCTUREs,
     LINEAGE_LINKED_GEDCOM_FILE,
-    LINEAGE_LINKED_RECORDs,
     PERSONAL_NAME_PIECES,
     PERSONAL_NAME_STRUCTURE,
     PLACE_STRUCTURE,
     SPOUSE_TO_FAMILY_LINK,
     SUBMITTER_RECORD,
     XREF_SUBM,
+    GEDCOM_FORM_HEADER_EXTENSIONs,
+    INDIVIDUAL_EVENT_STRUCTUREs,
+    LINEAGE_LINKED_RECORDs,
 )
 from gedcomish.gedcom555ish.primitives import XREF_FAM, XREF_INDI
 
@@ -68,18 +69,22 @@ FAMILY_RELATION_REGEX = re.compile(
     r"""
     (?P<RELATIONTYPE>Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo)
     (
-        \s*?
-        (?P<DATEMODIFIER>.+?)?
-        \s+?
-        (?P<RELATIONDAY>[0-9-.xX]+)
+        (
+            \s*?
+            (?P<DATEMODIFIER>.+?)
+        )?
+        (
+            \s+?
+            (?P<RELATIONDAY>[0-9-.xX]+)
+        )?
         (
             \s+?i\s+?
             (?P<RELATIONPLACE>.+?)
         )?
         \s+
-        |(?P<RELATIONDETAIL>.+?)
-        \s+
-    )?
+        |(?P<RELATIONDETAIL>.+?)\s+
+        |\s+
+    )
     med
     """,
     re.VERBOSE,
@@ -102,18 +107,17 @@ FAMILY_PERSON_REGEX = re.compile(
                 \(
                     \s*
                     från\s+?familj
-                    \s*
-                    <A\sHREF=\#(?P<FROM_HREF>[0-9]+)>
-                    (?P<FROM_REF>[0-9]+)
-                    <\/A>
+                    (?P<FROM_FAMILIES>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
                 \)
             )?
             (
                 ,
                 \s*?
                 född
-                \s+?
-                (?P<BIRTHDAY>[0-9-.xX]+)
+                (
+                    \s+?
+                    (?P<BIRTHDAY>[0-9-.xX]+)
+                )?
                 (
                     \s+?i\s+?
                     (?P<BIRTHPLACE>.+?)
@@ -123,8 +127,10 @@ FAMILY_PERSON_REGEX = re.compile(
                 ,
                 \s*?
                 död
-                \s+?
-                (?P<DEATHDAY>[0-9-.xX]+)
+                (
+                    \s+?
+                    (?P<DEATHDAY>[0-9-.xX]+)
+                )?
                 (
                     \s+?i\s+?
                     (?P<DEATHPLACE>.+?)
@@ -134,10 +140,7 @@ FAMILY_PERSON_REGEX = re.compile(
                 ,
                 \s*?
                 se\s+?familj
-                \s+?
-                <A\sHREF=\#(?P<SEE_HREF>[0-9]+)>
-                (?P<SEE_REF>[0-9]+)
-                <\/A>
+                (?P<SEE_FAMILIES>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
             )?
             [.]
             (
@@ -338,81 +341,103 @@ def index_sections(sections: Sections) -> DefaultDict[int, Sections]:
     return indexed_sections
 
 
-def split_sections(text, registry):
-    indexed_sections = index_sections(find_sections(text))
+def split_sections(text, registry) -> DefaultDict[int, Sections]:
+    def trim(part):
+        return " ".join(subpart.strip() for subpart in part.replace("<BR>", "").split())
 
-    fam_relations = defaultdict(list)
-    fam_adults = defaultdict(list)
-    fam_children = defaultdict(list)
+    indexed_sections = index_sections(find_sections(text))
+    split_sections = defaultdict(Sections)
+    IGNORE = re.compile(r"^<A\sNAME=[0-9]+>$")
     for fam_id, data in indexed_sections.items():
         parts = data.family.split("<P>")
         assert FAMILY_REGEX.search(parts[0])
-        adults = list()
-        children = list()
+        family_head = None
         relations: List[DefaultDict[str, List[Dict[str, str]]]] = list(defaultdict(list))
-        latest_adult_mentioned = None
-        for part in parts[1:]:
-            subparts = part.split("<BR>")
-            nonmatches = list()
-            for subpart in (subpart for subpart in (" ".join(subpart.split()) for subpart in subparts) if subpart):
-                if (m := FAMILY_RELATION_REGEX.search(subpart)) :
+        unknown = list()
+
+        lookahead_it, current_it = itertools.tee(parts[1:])
+        next(lookahead_it, None)
+        for part_no, current in enumerate(current_it):
+            lookahead = next(lookahead_it, None)
+            if (current_trimmed := trim(current)) :
+                unmatched = True
+                if (m := FAMILY_RELATION_REGEX.search(current_trimmed)) :
                     value = m.groupdict()
                     relations.append(defaultdict(list, relation=[value]))
-                    pass
-                elif (m := FAMILY_PERSON_REGEX.search(subpart)) :
-                    value = m.groupdict()
-                    if relations:
-                        if value["IS_CHILD"]:
-                            relations[-1]["children"].append(value)
-                            children.append(value)
-                        else:
-                            relations[-1]["partner"].append(value)
-                            adults.append(value)
-                    else:
-                        raise ValueError(f"Unexpected: {relations}: {value} ({subpart})")
-                elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(subpart)) :
+                    unmatched = False
+                    current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
+                if (m := FAMILY_CHILDREN_SECTION_HEADER.search(current_trimmed)) :
                     value = m.groupdict()
                     if relations:
                         relations[-1]["union"].append(value)
+                        unmatched = False
+                        current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
                     else:
-                        raise ValueError(f"Unexpected: {relations}: {value} ({subpart})")
-                else:
-                    value = subpart
-                    nonmatches.append(value)
+                        raise ValueError(f"Unexpected:union without relationship: {relations}: {value} ({current_trimmed})")
+                if (m := FAMILY_PERSON_REGEX.search(current_trimmed)) :
+                    # peek if there is more info
+                    if (lookahead_trimmed := trim(lookahead) if lookahead else lookahead) and not any(
+                        [
+                            FAMILY_PERSON_REGEX.search(lookahead_trimmed),
+                            FAMILY_CHILDREN_SECTION_HEADER.search(lookahead_trimmed),
+                            IGNORE.match(lookahead_trimmed),
+                        ]
+                    ):
+                        if (merged := trim(current + lookahead)) :
+                            if (mergedmatch := FAMILY_PERSON_REGEX.search(merged)) :
+                                logging.debug("Merging this and next part")
+                                value = mergedmatch.groupdict()
+                                current_trimmed = merged[0 : mergedmatch.start()] + merged[mergedmatch.end() :]
+                                next(current_it, None)
+                                next(lookahead_it, None)
+                    else:
+                        value = m.groupdict()
+                        current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
+
+                    if relations:
+                        if value["IS_CHILD"]:
+                            relations[-1]["children"].append(value)
+                            unmatched = False
+                        else:
+                            relations[-1]["partners"].append(value)
+                            unmatched = False
+                            if family_head:
+                                relations[-1]["partners"].append(family_head)
+                            else:
+                                raise ValueError(
+                                    f"Unexpected:partner missing family head: {relations}: {value} ({current_trimmed})"
+                                )
+                    else:
+                        if value["IS_CHILD"]:
+                            raise ValueError(f"Unexpected:IS_CHILD: {relations}: {value} ({current_trimmed})")
+                        elif family_head:
+                            raise ValueError(
+                                f"Unexpected:missing family head: {relations}: {value} ({current_trimmed})"
+                            )
+                        else:
+                            family_head = value
+                            unmatched = False
+
+                if unmatched:
+                    if IGNORE.match(current_trimmed):
+                        logging.debug(f"Skipped:unmatched: {current_trimmed}")
+                        unknown.append(current_trimmed)
+                    else:
+                        logging.warning(f"Unexpected:unmatched: {current_trimmed}")
+                        unknown.append(current_trimmed)
                     pass
-            unmatched = " ".join(nonmatches)
-            nonmatches = list()
 
-            family_head = None
-            if (m := FAMILY_RELATION_REGEX.search(unmatched)) :
-                value = m.groupdict()
-                raise ValueError(f"Parser failure: expected all relations to be parsed already: {value}")
-            elif (m := FAMILY_CHILDREN_SECTION_HEADER.search(unmatched)) :
-                value = m.groupdict()
-                raise ValueError(f"Parser failure: expected all children sections to be parsed already: {value}")
-            elif (m := FAMILY_PERSON_REGEX.search(unmatched)) :
-                value = m.groupdict()
-                if value["IS_CHILD"]:
-                    raise ValueError(f"Parser failure: expected all children to be parsed already: {value}")
-                else:
-                    if family_head:
-                        raise ValueError(
-                            f"Parser failure: expected family head to be only remaining person to parse: {value}"
-                        )
-                    else:
-                        family_head = value
-            else:
-                value = unmatched
-                if value:
-                    raise ValueError(f"Parser failure: unrecognized value: {value}")
-
-        if (fam_id in fam_relations) or (fam_id in fam_adults) or (fam_id in fam_children):
-            raise ValueError(f"Parser failure: family already present! {adults} {children} {relations}")
+        if fam_id in split_sections:
+            raise ValueError(f"Parser failure: family already present! {data}")
         else:
-            fam_relations[fam_id] = relations
-            fam_adults[fam_id] = adults
-            fam_children[fam_id] = children
-        pass
+            split_sections[fam_id] = Sections(
+                family=relations,
+                person=indexed_sections[fam_id].person,
+                location=indexed_sections[fam_id].location,
+                detail=indexed_sections[fam_id].detail,
+                unknown=None,
+            )
+    return split_sections
 
 
 class PersonRegistry:
