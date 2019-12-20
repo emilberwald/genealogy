@@ -1,3 +1,4 @@
+import argparse
 import copy
 import datetime
 import itertools
@@ -53,126 +54,151 @@ ORTREGISTER = "<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>"
 PERSONREGISTER = "<CENTER><FONT SIZE=5>Personregister</FONT></CENTER>"
 FAMILY_REGEX = re.compile(
     r"""
-    <CENTER>
-    <FONT\sSIZE=5>
-    \s*?
-    Familj
-    \s*?
-    (?P<ID>[0-9]+)
-    <\/FONT>
-    <\/CENTER>
+        <CENTER>
+        <FONT\sSIZE=5>
+        \s*?
+        Familj
+        \s*?
+        (?P<ID>[0-9]+)
+        <\/FONT>
+        <\/CENTER>
     """,
     re.VERBOSE,
 )
 
 FAMILY_RELATION_REGEX = re.compile(
     r"""
-    (?P<RELATIONTYPE>Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo)
-    (
+        \s*
+        (?P<RELATIONTYPE>Gift|Sambo|Relation|Förlovad|Trolovad|Partner|Särbo)
         (
-            \s*?
-            (?P<DATEMODIFIER>.+?)
-        )?
-        (
-            \s+?
-            (?P<RELATIONDAY>[0-9-.xX]+)
-        )?
-        (
-            \s+?i\s+?
-            (?P<RELATIONPLACE>.+?)
-        )?
-        \s+
-        |(?P<RELATIONDETAIL>.+?)\s+
-        |\s+
-    )
-    med
+            (
+                \s*?
+                (?P<DATEMODIFIER>.+?)
+            )?
+            (
+                \s+?
+                (?P<RELATIONDAY>[0-9-.xX]+)
+            )?
+            (
+                \s+?i\s+?
+                (?P<RELATIONPLACE>.+?)
+            )?
+            \s+
+            |(?P<RELATIONDETAIL>.+?)\s+
+            |\s+
+        )
+        med
+        \s*
     """,
     re.VERBOSE,
 )
 FAMILY_PERSON_REGEX = re.compile(
     r"""
-            (
-                \s*
-                (?P<IS_CHILD>[*])
-                \s*
-            )?
-            <B>
-            (?P<FIRSTNAMES>.*?)
-            (,
-                (?P<SECONDNAMES>.*?)
-            )?
-            <\/B>
+        (
             \s*
+            (?P<IS_CHILD>[*])
+            \s*
+        )?
+        <B>
+        (?P<FIRSTNAMES>.*?)
+        (,
+            (?P<SECONDNAMES>.*?)
+        )?
+        <\/B>
+        \s*
+        (
+            \(
+                \s*
+                (?P<FAMILIES_PREFIX_DIRECTION>se|från)\s+?familj
+                (?P<FAMILIES_PREFIX>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
+            \)
+            |
+            \(
+                (?P<FAMILIES_PREFIX_EVENT>.+?)
+            \)
+            \s*
+        )?
+        (
+            ,
+            \s*?
+            född
             (
+                \s+?(?P<BIRTHDAY>[0-9-.xX]+)
+                |\s+?(?P<BIRTHDAY_CORRUPT>[^\s]+)
+            )?
+            (
+                \s+?
                 \(
-                    \s*
-                    från\s+?familj
-                    (?P<FROM_FAMILIES>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
+                    (?P<BIRTHEVENT>.+?)?
+                    \s*?
+                    (?P<BIRTHEVENTDAY>[0-9-.xX]+)?
                 \)
+                \s*
             )?
             (
-                ,
-                \s*?
-                född
-                (
-                    \s+?
-                    (?P<BIRTHDAY>[0-9-.xX]+)
-                )?
-                (
-                    \s+?i\s+?
-                    (?P<BIRTHPLACE>.+?)
-                )?
+                \s+?i\s+?
+                (?P<BIRTHPLACE>.+?)
+            )?
+        )?
+        (
+            ,
+            \s*?
+            död
+            (
+                \s+?(?P<DEATHDAY>[0-9-.xX]+)
+                |\s+?(?P<DEATHDAY_CORRUPT>[^\s]+)
             )?
             (
-                ,
-                \s*?
-                död
-                (
-                    \s+?
-                    (?P<DEATHDAY>[0-9-.xX]+)
-                )?
-                (
-                    \s+?i\s+?
-                    (?P<DEATHPLACE>.+?)
-                )?
+                \s+?
+                \(
+                    (?P<DEATHEVENT>.+?)?
+                    \s*?
+                    (?P<DEATHEVENTDAY>[0-9-.xX]+)?
+                \)
+                \s*
             )?
             (
-                ,
-                \s*?
-                se\s+?familj
-                (?P<SEE_FAMILIES>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
+                \s+?i\s+?
+                (?P<DEATHPLACE>.+?)
+            )?
+        )?
+        (
+            ,
+            \s*?
+            (?P<FAMILIES_SUFFIX_DIRECTION>se|från)\s+?familj
+            (?P<FAMILIES_SUFFIX>\s*<A\sHREF=\#[0-9]+>[0-9]+<\/A>\s*,?\s*)+
+        )?
+        [.]
+        (
+            \s*?
+            Bosatt
+            (
+                \s+?i\s+?
+                (?P<HOMEPLACE>[^.]+?)
+            )
+            [.]
+        )?
+        (
+            \s*?
+            (?P<DETAILS>[^.]+?)
+            (
+                \s+?i\s+?
+                (?P<DETAILSPLACE>[^.]+?)
             )?
             [.]
-            (
-                \s*?
-                Bosatt
-                (
-                    \s+?i\s+?
-                    (?P<HOMEPLACE>[^.]+?)
-                )
-                [.]
-            )?
-            (
-                \s*?
-                (?P<DETAILS>[^.]+?)
-                (
-                    \s+?i\s+?
-                    (?P<DETAILSPLACE>[^.]+?)
-                )?
-                [.]
-            )?
-            (?P<NOTES>.*)
-            """,
+        )?
+        (?P<NOTES>.*)
+    """,
     re.VERBOSE,
 )
 
 FAMILY_CHILDREN_SECTION_HEADER = re.compile(
     r"""
         Barn:
-        |Barn\s+i(?P<MARRIAGE_NO>.+?)giftet:
-        |Barn\s+utan\s+känd\s+(?P<PARTNER_SEX>moder|fader):
+        |Barn\s+i(?P<MARRIAGE_NUMERAL>.+?)giftet:
+        |Barn\s+utan\s+känd\s+(?P<UNKNOWN_PARTNER_BIOLOGICAL_PARENTAL_ROLE>moder|fader):
         |Barn\s+med\s+(?P<PARTNER_NAME>[^:]+):
-        """,
+    """,
     re.VERBOSE,
 )
 
@@ -281,7 +307,7 @@ def refine_person_sections(sections: list) -> DefaultDict[int, List[RegistryPers
     return result
 
 
-Sections = namedtuple("Sections", ("family", "person", "location", "detail", "unknown"))
+Sections = namedtuple("Sections", ("family", "person", "location", "detail", "unknown", "source"))
 
 
 def find_sections(text) -> Sections:
@@ -315,6 +341,7 @@ def find_sections(text) -> Sections:
         location=location_sections,
         detail=detail_sections,
         unknown=unknown_sections,
+        source=None,
     )
 
 
@@ -336,6 +363,7 @@ def index_sections(sections: Sections) -> DefaultDict[int, Sections]:
             location=locations[fam_id],
             detail=details[fam_id],
             unknown=None,
+            source=None,
         )
     del details, locations, persons, found_fams
     return indexed_sections
@@ -343,399 +371,151 @@ def index_sections(sections: Sections) -> DefaultDict[int, Sections]:
 
 def split_sections(text, registry) -> DefaultDict[int, Sections]:
     def trim(part):
-        return " ".join(subpart.strip() for subpart in part.replace("<BR>", "").split())
+        return " ".join(subpart.strip() for subpart in part.split())
+
+    def unrecognized(text):
+        return not any(
+            [
+                FAMILY_PERSON_REGEX.match(text),
+                FAMILY_CHILDREN_SECTION_HEADER.match(text),
+                FAMILY_RELATION_REGEX.match(text),
+                IGNORE.match(text),
+            ]
+        )
+
+    def lookahead_match(*, part_no, parts, current, regex):
+        # check if there are more information in the following paragraph that belongs to the person
+        merge = None
+        merge_match = None
+        merge_lookahead = None
+        if (match := regex.match(current)) :
+            merge = current
+            merge_match = match
+            merge_lookahead = part_no + 1
+        for end in range(part_no + 2, len(parts)):
+            trial_merge = trim(current + " ".join(parts[part_no + 1 : end]))
+            remains = trim("".join(parts[end:]))
+            if (match := regex.match(trial_merge)) :
+                merge = trial_merge
+                merge_match = match
+                merge_lookahead = end
+                if unrecognized(remains):
+                    continue
+                else:
+                    break
+        if merge and merge_match:
+            value = merge_match.groupdict()
+            merge_trimmed = trim(merge[0 : merge_match.start()] + merge[merge_match.end() :])
+            nof_lookahead = merge_lookahead - (part_no + 1)
+            if nof_lookahead > 0:
+                logging.debug(f"MERGE {nof_lookahead} lookaheads:\n{value}")
+            return merge_trimmed, value, nof_lookahead
+        else:
+            return None
 
     indexed_sections = index_sections(find_sections(text))
     split_sections = defaultdict(Sections)
     IGNORE = re.compile(r"^<A\sNAME=[0-9]+>$")
     for fam_id, data in indexed_sections.items():
-        parts = data.family.split("<P>")
-        assert FAMILY_REGEX.search(parts[0])
-        family_head = None
-        relations: List[DefaultDict[str, List[Dict[str, str]]]] = list(defaultdict(list))
+        logging.debug(f"family:{data}")
+        parts = [
+            trim(part.replace("*", " * "))
+            for part in itertools.chain.from_iterable(
+                subpart.splitlines() for part in data.family.split("<P>") for subpart in part.split("<BR>")
+            )
+            if trim(part)
+        ]
+        if IGNORE.match(parts[0]):
+            assert FAMILY_REGEX.search(parts[1])
+            start = 2
+        else:
+            assert FAMILY_REGEX.search(parts[0])
+            start = 1
+
+        adults = list()
+        children = list()
+        unions = list()
+        relations = list()
         unknown = list()
-
-        lookahead_it, current_it = itertools.tee(parts[1:])
-        next(lookahead_it, None)
-        for part_no, current in enumerate(current_it):
-            lookahead = next(lookahead_it, None)
-            if (current_trimmed := trim(current)) :
-                unmatched = True
-                if (m := FAMILY_RELATION_REGEX.search(current_trimmed)) :
-                    value = m.groupdict()
-                    relations.append(defaultdict(list, relation=[value]))
-                    unmatched = False
-                    current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
-                if (m := FAMILY_CHILDREN_SECTION_HEADER.search(current_trimmed)) :
-                    value = m.groupdict()
-                    if relations:
-                        relations[-1]["union"].append(value)
-                        unmatched = False
-                        current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
+        remains = None
+        part_it = enumerate(parts)
+        while True:
+            current_part = next(part_it, None)
+            if current_part:
+                part_no, current = current_part
+                if remains:
+                    current = trim(remains + " " + current)
+                    remains = None
+                if part_no < start:
+                    continue
+            else:
+                break
+            if current:
+                person = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_PERSON_REGEX)
+                relation = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_RELATION_REGEX)
+                union = lookahead_match(
+                    part_no=part_no, parts=parts, current=current, regex=FAMILY_CHILDREN_SECTION_HEADER,
+                )
+                if person and not relation and not union:
+                    # person entry
+                    remains, value, nof_lookahead = person
+                    for _ in range(0, nof_lookahead):
+                        current_part = next(part_it, None)
+                    if any("CORRUPT" in fieldkey for fieldkey, fieldval in value.items() if fieldval):
+                        logging.warning(f"CORRUPTION:{fam_id}:\n{value}\n")
+                    if value["IS_CHILD"]:
+                        children.append((part_no, value))
+                        logging.debug(f"added child:{fam_id}:\n{children[-1]}\n")
                     else:
-                        raise ValueError(f"Unexpected:union without relationship: {relations}: {value} ({current_trimmed})")
-                if (m := FAMILY_PERSON_REGEX.search(current_trimmed)) :
-                    # peek if there is more info
-                    if (lookahead_trimmed := trim(lookahead) if lookahead else lookahead) and not any(
-                        [
-                            FAMILY_PERSON_REGEX.search(lookahead_trimmed),
-                            FAMILY_CHILDREN_SECTION_HEADER.search(lookahead_trimmed),
-                            IGNORE.match(lookahead_trimmed),
-                        ]
-                    ):
-                        if (merged := trim(current + lookahead)) :
-                            if (mergedmatch := FAMILY_PERSON_REGEX.search(merged)) :
-                                logging.debug("Merging this and next part")
-                                value = mergedmatch.groupdict()
-                                current_trimmed = merged[0 : mergedmatch.start()] + merged[mergedmatch.end() :]
-                                next(current_it, None)
-                                next(lookahead_it, None)
+                        adults.append((part_no, value))
+                        logging.debug(f"added adult:{fam_id}:\n{adults[-1]}\n")
+                    continue
+                if relation and not person and not union:
+                    # header for relation entry
+                    remains, value, nof_lookahead = relation
+                    for _ in range(0, nof_lookahead):
+                        current_part = next(part_it, None)
+                    relations.append((part_no, value))
+                    logging.debug(f"added relationship:{fam_id}:\n{relations[-1]}\n")
+                    continue
+                if union and not person and not relation:
+                    # header for children entries
+                    remains, value, nof_lookahead = union
+                    for _ in range(0, nof_lookahead):
+                        current_part = next(part_it, None)
+                    unions.append((part_no, value))
+                    logging.debug(f"added union:{fam_id}:\n{unions[-1]}\n")
+                    continue
+                if current.strip():
+                    if IGNORE.match(current):
+                        pass
                     else:
-                        value = m.groupdict()
-                        current_trimmed = current_trimmed[0 : m.start()] + current_trimmed[m.end() :]
-
-                    if relations:
-                        if value["IS_CHILD"]:
-                            relations[-1]["children"].append(value)
-                            unmatched = False
-                        else:
-                            relations[-1]["partners"].append(value)
-                            unmatched = False
-                            if family_head:
-                                relations[-1]["partners"].append(family_head)
+                        for start in range(0, len(current)):
+                            if unrecognized(current[start:]):
+                                continue
                             else:
-                                raise ValueError(
-                                    f"Unexpected:partner missing family head: {relations}: {value} ({current_trimmed})"
+                                unknown.append((part_no, current[0:start]))
+                                logging.warning(
+                                    f"added unknown:{fam_id}:\n{unknown[-1]}\ncontext:\n{current}\nfamily:\n{data.family}\n"
                                 )
-                    else:
-                        if value["IS_CHILD"]:
-                            raise ValueError(f"Unexpected:IS_CHILD: {relations}: {value} ({current_trimmed})")
-                        elif family_head:
-                            raise ValueError(
-                                f"Unexpected:missing family head: {relations}: {value} ({current_trimmed})"
-                            )
-                        else:
-                            family_head = value
-                            unmatched = False
-
-                if unmatched:
-                    if IGNORE.match(current_trimmed):
-                        logging.debug(f"Skipped:unmatched: {current_trimmed}")
-                        unknown.append(current_trimmed)
-                    else:
-                        logging.warning(f"Unexpected:unmatched: {current_trimmed}")
-                        unknown.append(current_trimmed)
-                    pass
+                                logging.debug(f"added unknown:{fam_id}:\n{unknown[-1]}\n")
+                                remains = current[start:]
+                                break
+                        if current == remains:
+                            raise NotImplementedError()
 
         if fam_id in split_sections:
             raise ValueError(f"Parser failure: family already present! {data}")
         else:
             split_sections[fam_id] = Sections(
-                family=relations,
+                family={"adults": adults, "children": children, "unions": unions, "relations": relations},
                 person=indexed_sections[fam_id].person,
                 location=indexed_sections[fam_id].location,
                 detail=indexed_sections[fam_id].detail,
-                unknown=None,
+                unknown=unknown,
+                source=data.family,
             )
     return split_sections
-
-
-class PersonRegistry:
-    """
-    Searches for persons in the person registry.
-
-    fields:
-        _NAME
-        _BIRTHDAY
-        _BIRTHPLACE
-        _PERSON_IN_FAMILY
-    """
-
-    def __init__(self, file: pathlib.Path):
-        self.file = file
-        self.persons = PersonRegistry._parse_personregister(file)
-
-    def get_persons(self):
-        return OrderedDict(sorted(copy.deepcopy(self.persons).items(), key=lambda p: p[1][0][_BIRTHDAY]))
-
-    @staticmethod
-    def _gen_family_ids_from_registered_person(person):
-        pattern = re.compile(
-            r"(?P<family><A HREF=#(?P<fam_href>[0-9]+?)>(?P<fam_ref>[0-9]+?)</A>,?\s*?)", flags=re.DOTALL,
-        )
-
-        yield from (m.groupdict() for m in pattern.finditer(person["families"]))
-
-    @staticmethod
-    def _gen_registered_person(personregister):
-        pattern = re.compile(
-            r"<B>(?P<name>[^<]+?)</B>\s+f\s+(?P<bday>[0-9-\\.xX]+?)(\s+?i\s+?(?P<bplace>.*?))?\s+?(?P<families><[^\r\n]*?)?<BR>",
-            flags=re.DOTALL,
-        )
-        yield from (m.groupdict() for m in pattern.finditer(personregister["Personregister"]))
-
-    @staticmethod
-    def _gen_personregistry(text):
-        pattern = re.compile(
-            r"<CENTER><FONT SIZE=5>Personregister</FONT></CENTER>(?P<Personregister>.*)<CENTER><FONT SIZE=5>Ortregister</FONT></CENTER>",
-            flags=re.DOTALL,
-        )
-        yield from (m.groupdict() for m in pattern.finditer(text))
-
-    @staticmethod
-    def _parse_personregister(file: pathlib.Path):
-        text = file.read_text(encoding="utf-8")
-
-        persons: DefaultDict[uuid.UUID, List] = defaultdict(list)
-        for personregister in PersonRegistry._gen_personregistry(text):
-            for person in PersonRegistry._gen_registered_person(personregister):
-                person_id = uuid.uuid1()
-                person[_PERSON_IN_FAMILY] = list()
-                for family in PersonRegistry._gen_family_ids_from_registered_person(person):
-                    assert family["fam_href"] == family["fam_ref"]
-                    person[_PERSON_IN_FAMILY].append(family["fam_ref"])
-                person[_PERSON_IN_FAMILY] = tuple(person[_PERSON_IN_FAMILY])
-                persons[person_id].append(person)
-        return persons
-
-
-class FamilyRegistry:
-    """
-    Searches for persons in the family sections.
-
-    fields:
-        _NAME
-        _BIRTHDAY
-        _BIRTHPLACE
-        _DEATHDAY
-        _DEATHPLACE
-        _LIVINGPLACE
-        _PARENT_IN_FAMILY
-        _CHILD_IN_FAMILY
-    """
-
-    def __init__(self, file: pathlib.Path):
-        self.file = file
-        self.persons, self.family_to_source = FamilyRegistry._parse_family_registry(file)
-
-    def get_persons(self):
-        return sorted(
-            copy.deepcopy(self.persons),
-            key=lambda p: (p[_BIRTHDAY] is None, normalize_date(p[_BIRTHDAY]) if p[_BIRTHDAY] else p[_BIRTHDAY],),
-        )
-
-    def get_family_to_source(self):
-        return copy.deepcopy(self.family_to_source)
-
-    @staticmethod
-    def _gen_family_person_info(family_person):
-        # split on
-        # Familj [0-9]+
-        # children:
-        # *  se familj
-        #
-        text = family_person["person"]
-        text = text.replace("<BR>", "")
-        text = text.replace("<P>", "")
-        text = text.replace("\r", "")
-        text = text.replace("\n", "")
-        pattern = re.compile(
-            r"<B>(?P<name>.*?)</B>"
-            r"(.*?född\s*(?P<bday>[0-9-\.xX]+)(\s*i\s*(?P<bplace>[^)]+?\)))?)?"
-            r"(.*?död\s*(?P<dday>[0-9-\.xX]+)(\s*i\s*(?P<dplace>[^)]+?\)))?)?"
-            r"(.*?Bosatt\s*i\s*(?P<lplace>[^)]+?\)))?"
-            # r"(.*?Gift\s*(?P<mday>[0-9-\.xX]+)(\s*i\s*(?P<mplace>[^)]+?\)))?)?"
-        )
-        yield from (m.groupdict() for m in pattern.finditer(text))
-
-    @staticmethod
-    def _gen_family_person(family):
-        pattern = re.compile(r"(?P<person>.*?)(<B>|$)", flags=re.DOTALL,)
-        text = family["family"]
-
-        for child_idx, child in enumerate(text.split("*")):
-            for _, person in enumerate(child.split("<B>")):
-                yield from (
-                    dict(
-                        {key: "<B>" + val for key, val in match.groupdict().items()},
-                        **{_PARENT_IN_FAMILY: (family["fam_ref"],)},
-                    )
-                    if child_idx == 0
-                    else dict(
-                        {key: "<B>" + val for key, val in match.groupdict().items()},
-                        **{_CHILD_IN_FAMILY: (family["fam_ref"],)},
-                    )
-                    for match in pattern.finditer(person)
-                )
-
-    @staticmethod
-    def _gen_family(family_section):
-        pattern = re.compile(r"(?P<fam_ref>[0-9]+)>(?P<family>.*?)(<A NAME=|$)", flags=re.DOTALL,)
-        yield from (m.groupdict() for m in pattern.finditer(family_section["family_section"]))
-
-    @staticmethod
-    def _gen_family_section(text):
-        pattern = re.compile(
-            r"(?P<family_section><A NAME=[0-9]>.*?)<CENTER><FONT SIZE=5>Personregister</FONT></CENTER>",
-            flags=re.DOTALL,
-        )
-        yield from (m.groupdict() for m in pattern.finditer(text))
-
-    @staticmethod
-    def _parse_family_registry(file: pathlib.Path):
-        text = file.read_text(encoding="utf-8")
-        family_persons = list()
-        family_to_source = dict()
-        for family_section in FamilyRegistry._gen_family_section(text):
-            for family in FamilyRegistry._gen_family(family_section):
-                family_to_source[family["fam_ref"]] = family["family"]
-                for person in FamilyRegistry._gen_family_person(family):
-                    for info in FamilyRegistry._gen_family_person_info(person):
-                        family_persons.append(
-                            dict(
-                                info,
-                                **{
-                                    _PARENT_IN_FAMILY: person[_PARENT_IN_FAMILY]
-                                    if _PARENT_IN_FAMILY in person
-                                    else tuple(),
-                                    _CHILD_IN_FAMILY: person[_CHILD_IN_FAMILY]
-                                    if _CHILD_IN_FAMILY in person
-                                    else tuple(),
-                                },
-                            )
-                        )
-
-        return family_persons, family_to_source
-
-
-def match(personRegistry: PersonRegistry, familyRegistry: FamilyRegistry):
-    registered_persons = personRegistry.get_persons()
-    persons = familyRegistry.get_persons()
-    family_to_source = familyRegistry.get_family_to_source()
-    logger.info(f"matching {len(persons)} persons  to the {len(registered_persons)} persons in registry.")
-    for person_id, person_query in registered_persons.items():
-        normalized_bday_query = normalize_date(person_query[0][_BIRTHDAY])
-        normalized_name_query = normalize_name(person_query[0][_NAME])
-        family_ids_query = set(person_query[0][_PERSON_IN_FAMILY])
-
-        keep_looping = True
-        while keep_looping:
-            keep_looping = False
-            for full_person in persons:
-                normalized_date_person = (
-                    normalize_date(full_person[_BIRTHDAY]) if full_person[_BIRTHDAY] else full_person[_BIRTHDAY]
-                )
-                normalized_name_person = normalize_name(full_person[_NAME])
-
-                # Check age
-                if (full_person[_BIRTHDAY] is None, normalized_date_person) > (False, normalized_bday_query,):
-                    break
-
-                # Check family connections
-                if not any(
-                    [
-                        set(full_person[_PARENT_IN_FAMILY]) & family_ids_query,
-                        set(full_person[_CHILD_IN_FAMILY]) & family_ids_query,
-                    ]
-                ):
-                    continue
-
-                # Check name and age
-                if all(
-                    [normalized_date_person == normalized_bday_query, normalized_name_person == normalized_name_query]
-                ):
-                    registered_persons[person_id].append(full_person)
-                    persons.remove(full_person)
-                    keep_looping = True
-                    break
-    logger.warning(f"#unmatched persons: {len(persons)}")
-    logger.info(f"adding person info to families.")
-    families: DefaultDict[str, DefaultDict[str, List]] = defaultdict(lambda: defaultdict(list))
-    for person_id, infos in registered_persons.items():
-        for info in infos:
-            for family_kind in (_PERSON_IN_FAMILY, _PARENT_IN_FAMILY, _CHILD_IN_FAMILY):
-                if family_kind in info:
-                    for family_id in info[family_kind]:
-                        families[family_id][family_kind].append(person_id)
-    for family_id, source_text in family_to_source.items():
-        families[family_id][_SOURCE_TEXT_FAMILY] = source_text
-    return registered_persons, persons, families
-
-
-def merge(matches):
-    merges = dict()
-    for match_id, match in matches.items():
-        merge = dict()
-        try:
-            merge[_NAME] = (match[0][_NAME],)
-        except Exception as e:
-            logger.error(f"{e}")
-        try:
-            last_names, first_names = match[0][_NAME].split(",")
-            first_names = first_names.split()
-            last_names = last_names.split()
-            merge[_FIRST_NAMES] = tuple(first_names)
-            merge[_LAST_NAMES] = tuple(last_names)
-        except Exception as e:
-            logger.error(f"{e}")
-
-        try:
-            merge[_BIRTHDAY] = (match[0][_BIRTHDAY],)
-        except Exception as e:
-            logger.error(f"{e}")
-        try:
-            merge[_PERSON_IN_FAMILY] = match[0][_PERSON_IN_FAMILY]
-        except Exception as e:
-            logger.error(f"{e}")
-        try:
-            merge[_PARENT_IN_FAMILY] = tuple(
-                family_id
-                for person in match
-                if _PARENT_IN_FAMILY in person
-                for family_id in person[_PARENT_IN_FAMILY]
-                if person[_PARENT_IN_FAMILY]
-            )
-        except Exception as e:
-            logger.error(f"{e}")
-        try:
-            merge[_CHILD_IN_FAMILY] = tuple(
-                family_id
-                for person in match
-                if _CHILD_IN_FAMILY in person
-                for family_id in person[_CHILD_IN_FAMILY]
-                if person[_CHILD_IN_FAMILY]
-            )
-        except Exception as e:
-            logger.error(f"{e}")
-        try:
-            merge[_DEATHDAY] = tuple(person[_DEATHDAY] for person in match if _DEATHDAY in person and person[_DEATHDAY])
-            for prop in (
-                _BIRTHPLACE,
-                _DEATHPLACE,
-                _LIVINGPLACE,
-            ):
-                merge[prop] = tuple(
-                    " ".join(person[prop].split()) for person in match if prop in person and person[prop]
-                )
-
-            for prop in (_BIRTHPLACE, _DEATHPLACE, _LIVINGPLACE):
-                if merge[prop] and len(merge[prop]) > 1:
-                    for prop_place in merge[prop]:
-                        if all(pplace in prop_place for pplace in merge[prop]):
-                            merge[prop] = (prop_place,)
-                            break
-        except Exception as e:
-            logger.error(f"{e}")
-        merges[match_id] = {k: v for k, v in merge.items() if v}
-    return merges
-
-
-def parse_html(file: pathlib.Path):
-    personRegistry = PersonRegistry(file)
-    familyRegistry = FamilyRegistry(file)
-    matched, unmatched, families = match(personRegistry, familyRegistry)
-    logger.warning(f"unmatched persons: {unmatched}")
-    return merge(matched), unmatched, families
 
 
 def parsed_to_gedcom(path: pathlib.Path, parsed):
@@ -864,3 +644,11 @@ def parsed_to_gedcom(path: pathlib.Path, parsed):
     outfile.write_text(result, encoding="utf-8-sig")
     logger.info(f"GEDCOM output: {outfile}")
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Parse html file in holger-like format.")
+    parser.add_argument("--holger", type=pathlib.Path, help="path to .htm file")
+    pargs = parser.parse_args()
+    sections = split_sections(pargs.holger.read_text(), dict())
+    # TODO: fix parsed_to_gedcom
+    pass
