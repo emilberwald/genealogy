@@ -9,6 +9,7 @@ import socket
 import uuid
 from collections import OrderedDict, defaultdict, namedtuple
 from typing import DefaultDict, Dict, List, Set
+from difflib import SequenceMatcher
 
 import pkg_resources
 
@@ -92,6 +93,7 @@ FAMILY_RELATION_REGEX = re.compile(
     """,
     re.VERBOSE,
 )
+
 FAMILY_PERSON_REGEX = re.compile(
     r"""
         (
@@ -192,7 +194,7 @@ FAMILY_PERSON_REGEX = re.compile(
     re.VERBOSE,
 )
 
-FAMILY_CHILDREN_SECTION_HEADER = re.compile(
+FAMILY_UNION_REGEX = re.compile(
     r"""
         Barn:
         |Barn\s+i(?P<MARRIAGE_NUMERAL>.+?)giftet:
@@ -210,6 +212,7 @@ ANCHOR_REGEX = re.compile(
     """,
     re.VERBOSE,
 )
+
 PERSONREGISTRY_PERSON_REGEX = re.compile(
     r"""
             <B>
@@ -250,8 +253,8 @@ def section_parts(sections: list, heading):
                 logger.warning(f"empty line in {heading} at {line_no}: {line}")
 
 
-RegistryDetail = namedtuple("RegistryPerson", ("detail",))
-RegistryLocation = namedtuple("RegistryPerson", ("location",))
+RegistryDetail = namedtuple("RegistryDetail", ("detail",))
+RegistryLocation = namedtuple("RegistryLocation", ("location",))
 RegistryPerson = namedtuple("RegistryPerson", ("firstnames", "surnames", "birthday", "birthplace"))
 
 
@@ -289,19 +292,19 @@ def refine_person_sections(sections: list) -> DefaultDict[int, List[RegistryPers
                 if m["SECONDNAMES"]:
                     result[int(ref)].append(
                         RegistryPerson(
-                            firstnames=m["SECONDNAMES"].split() if m["SECONDNAMES"] else None,
-                            surnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
+                            firstnames=tuple(m["SECONDNAMES"].split()) if m["SECONDNAMES"] else None,
+                            surnames=tuple(m["FIRSTNAMES"].split()) if m["FIRSTNAMES"] else None,
                             birthday=m["BIRTHDAY"],
-                            birthplace=m["BIRTHPLACE"].split() if m["BIRTHPLACE"] else None,
+                            birthplace=tuple(m["BIRTHPLACE"].split()) if m["BIRTHPLACE"] else None,
                         )
                     )
                 else:
                     result[int(ref)].append(
                         RegistryPerson(
-                            firstnames=m["FIRSTNAMES"].split() if m["FIRSTNAMES"] else None,
+                            firstnames=tuple(m["FIRSTNAMES"].split()) if m["FIRSTNAMES"] else None,
                             surnames=None,
                             birthday=m["BIRTHDAY"],
-                            birthplace=m["BIRTHPLACE"].split() if m["BIRTHPLACE"] else None,
+                            birthplace=tuple(m["BIRTHPLACE"].split()) if m["BIRTHPLACE"] else None,
                         )
                     )
     return result
@@ -377,7 +380,7 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
         return not any(
             [
                 FAMILY_PERSON_REGEX.match(text),
-                FAMILY_CHILDREN_SECTION_HEADER.match(text),
+                FAMILY_UNION_REGEX.match(text),
                 FAMILY_RELATION_REGEX.match(text),
                 IGNORE.match(text),
             ]
@@ -453,9 +456,7 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
             if current:
                 person = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_PERSON_REGEX)
                 relation = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_RELATION_REGEX)
-                union = lookahead_match(
-                    part_no=part_no, parts=parts, current=current, regex=FAMILY_CHILDREN_SECTION_HEADER,
-                )
+                union = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_UNION_REGEX,)
                 if person and not relation and not union:
                     # person entry
                     remains, value, nof_lookahead = person
@@ -464,10 +465,10 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
                     if any("CORRUPT" in fieldkey for fieldkey, fieldval in value.items() if fieldval):
                         logging.warning(f"CORRUPTION:{fam_id}:\n{value}\n")
                     if value["IS_CHILD"]:
-                        children.append((part_no, value))
+                        children.append((part_no, namedtuple("child", value.keys())(**value)))
                         logging.debug(f"added child:{fam_id}:\n{children[-1]}\n")
                     else:
-                        adults.append((part_no, value))
+                        adults.append((part_no, namedtuple("adult", value.keys())(**value)))
                         logging.debug(f"added adult:{fam_id}:\n{adults[-1]}\n")
                     continue
                 if relation and not person and not union:
@@ -475,15 +476,15 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
                     remains, value, nof_lookahead = relation
                     for _ in range(0, nof_lookahead):
                         current_part = next(part_it, None)
-                    relations.append((part_no, value))
-                    logging.debug(f"added relationship:{fam_id}:\n{relations[-1]}\n")
+                    relations.append((part_no, namedtuple("relation", value.keys())(**value)))
+                    logging.debug(f"added relation:{fam_id}:\n{relations[-1]}\n")
                     continue
                 if union and not person and not relation:
                     # header for children entries
                     remains, value, nof_lookahead = union
                     for _ in range(0, nof_lookahead):
                         current_part = next(part_it, None)
-                    unions.append((part_no, value))
+                    unions.append((part_no, namedtuple("union", value.keys())(**value)))
                     logging.debug(f"added union:{fam_id}:\n{unions[-1]}\n")
                     continue
                 if current.strip():
@@ -507,8 +508,9 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
         if fam_id in split_sections:
             raise ValueError(f"Parser failure: family already present! {data}")
         else:
+            family_values = {"adults": adults, "children": children, "unions": unions, "relations": relations}
             split_sections[fam_id] = Sections(
-                family={"adults": adults, "children": children, "unions": unions, "relations": relations},
+                family=namedtuple("family", family_values.keys())(**family_values),
                 person=indexed_sections[fam_id].person,
                 location=indexed_sections[fam_id].location,
                 detail=indexed_sections[fam_id].detail,
@@ -518,14 +520,179 @@ def split_sections(text, registry) -> DefaultDict[int, Sections]:
     return split_sections
 
 
-def parsed_to_gedcom(path: pathlib.Path, parsed):
-    merges, unmatched, families = parsed
+def parsed_to_gedcom(path: pathlib.Path, sections):
+    def partner_similarity(reg_person: RegistryPerson, union):
+        return SequenceMatcher(
+            None, v if (v := union.PARTNER_NAME) else "", "".join(v) if (v := reg_person.birthday) else ""
+        ).ratio()
+
+    def person_similarity(reg_person: RegistryPerson, fam_person):
+        score = SequenceMatcher(
+            None, v if (v := fam_person.BIRTHDAY) else "", "".join(v) if (v := reg_person.birthday) else ""
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.BIRTHDAY_CORRUPT) else "", "".join(v) if (v := reg_person.birthday) else "",
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.BIRTHPLACE) else "", "".join(v) if (v := reg_person.birthplace) else "",
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.FIRSTNAMES) else "", "".join(v) if (v := reg_person.firstnames) else "",
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.SECONDNAMES) else "", "".join(v) if (v := reg_person.firstnames) else "",
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.FIRSTNAMES) else "", "".join(v) if (v := reg_person.surnames) else ""
+        ).ratio()
+        score += SequenceMatcher(
+            None, v if (v := fam_person.SECONDNAMES) else "", "".join(v) if (v := reg_person.surnames) else ""
+        ).ratio()
+        return score
+
+    def location_similarity(reg_location: RegistryLocation, fam_location):
+        return SequenceMatcher(
+            None, v if (v := fam_location) else "", "".join(v) if (v := reg_location.location) else ""
+        ).ratio()
+
+    def detail_similarity(reg_detail: RegistryDetail, fam_detail):
+        return SequenceMatcher(
+            None, v if (v := fam_detail) else "", "".join(v) if (v := reg_detail.detail) else ""
+        ).ratio()
+
     fam_records = set()
     indi_records = set()
-    for fam_id in families.keys():
+    ids = defaultdict(uuid.uuid4)
+    for fam_id, section in sections.items():
 
         famrecord = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD()
         famrecord.FAM = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM(XREF_FAM(fam_id))
+
+        for person in section.person:
+            ids[person]
+        del person
+
+        old_ids = {k:v for k,v in ids.items()}
+
+        fam_persons = list()
+        parent_part_no, parent = section.family.adults[0]
+        for part_no, fam_person in section.family.adults:
+            person = max(
+                section.person, key=lambda reg_person, fam_person=fam_person: person_similarity(reg_person, fam_person),
+            )
+            ids[fam_person] = ids[person]
+            fam_persons.append(ids[fam_person])
+        del part_no, fam_person
+
+        if section.family.children:
+            for part_no, fam_person in section.family.children:
+                person = max(
+                    section.person,
+                    key=lambda reg_person, fam_person=fam_person: person_similarity(reg_person, fam_person),
+                )
+                ids[fam_person] = ids[person]
+                fam_persons.append(ids[fam_person])
+            del part_no, fam_person
+        if len(fam_persons) != len(set(fam_persons)):
+            raise ValueError("persons not unique")
+        del fam_persons
+
+
+        if section.family.relations:
+            for relation_part_no, relation in section.family.relations:
+                # closest lexically after
+                adult_part_no, adult = min(
+                    (adult_part_no, adult)
+                    for adult_part_no, adult in section.family.adults
+                    if adult_part_no > relation_part_no
+                )
+                if ids[parent] == ids[adult]:
+                    logging.warning(f"unexpected relationship between {parent} and {adult}")
+                ids[relation] = (ids[parent], ids[adult])
+            del adult_part_no, adult, relation_part_no, relation
+
+        if section.family.unions:
+            for union_part_no, union in section.family.unions:
+                if union.PARTNER_NAME:
+                    person = max(
+                        section.person, key=lambda reg_person, union=union: partner_similarity(reg_person, union)
+                    )
+                    if not person:
+                        raise ValueError(f"Could not find persons in {union} in {section.person}.")
+                    if ids[parent] == ids[person]:
+                        logging.warning(f"Unexpected parthenogenesis for {parent} and {person}.")
+                    ids[union] = (ids[parent], ids[person])
+                    del person
+                elif union.MARRIAGE_NUMERAL:
+                    marriage_no = 1
+                    if "första" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 1
+                    elif "andra" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 2
+                    elif "tredje" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 3
+                    elif "fjärde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 4
+                    elif "femte" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 5
+                    elif "sjätte" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 6
+                    elif "sjunde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 7
+                    elif "åttonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 8
+                    elif "nionde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 9
+                    elif "tionde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 10
+                    elif "elfte" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 11
+                    elif "tolfte" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 12
+                    elif "trettonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 13
+                    elif "fjortonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 14
+                    elif "femtonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 15
+                    elif "sextonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 16
+                    elif "sjuttonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 17
+                    elif "artonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 18
+                    elif "nittonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 19
+                    elif "tjugonde" in union.MARRIAGE_NUMERAL:
+                        marriage_no = 20
+                    else:
+                        raise ValueError(f"Unrecognized numeral: {union.MARRIAGE_NUMERAL}")
+                    marriage_counter = 0
+                    for relation_part_no, relation in section.family.relations:
+                        if "Gift" in relation.RELATIONTYPE:
+                            marriage_counter += 1
+                            if marriage_counter == marriage_no:
+                                ids[union] = ids[relation]
+                                del relation_part_no, relation, marriage_no, marriage_counter
+                                break
+                            else:
+                                continue
+                        raise ValueError(f"Could not find {union.MARRIAGE_NUMERAL} in {section.family.relations}.")
+                elif union.UNKNOWN_PARTNER_BIOLOGICAL_PARENTAL_ROLE:
+                    raise NotImplementedError("TODO: Add unknown partner info")
+                else:
+                    # closest lexically before
+                    adult_part_no, adult = max(
+                        (adult_part_no, adult)
+                        for adult_part_no, adult in section.family.adults
+                        if adult_part_no < union_part_no
+                    )
+                    ids[union] = (parent, adult)
+                    del adult_part_no, adult
+            del union_part_no, union
+
+        new_ids = {k: v for k, v in ids.items() if k not in old_ids}
+        #TODO: FIX BELOW
 
         parent_ids = families[fam_id][_PARENT_IN_FAMILY]
         if parent_ids:
@@ -650,5 +817,4 @@ if __name__ == "__main__":
     parser.add_argument("--holger", type=pathlib.Path, help="path to .htm file")
     pargs = parser.parse_args()
     sections = split_sections(pargs.holger.read_text(), dict())
-    # TODO: fix parsed_to_gedcom
-    pass
+    parsed_to_gedcom(pargs.holger, sections)
