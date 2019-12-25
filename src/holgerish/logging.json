@@ -1,0 +1,139 @@
+{
+	"version": 1,
+	"disable_existing_loggers": false,
+	"formatters": {
+		"explicit": {
+			"format": "[%(levelname)s][%(name)s][%(asctime)s][%(relativeCreated)07dms][%(processName)s:%(threadName)s][%(pathname)s:%(lineno)s][%(funcName)s]\n%(message)s\n"
+		}
+	},
+	"filters": {
+		"filterCRITICAL": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "CRITICAL"
+		},
+		"filterERROR": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "ERROR"
+		},
+		"filterWARNING": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "WARNING"
+		},
+		"filterINFO": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "INFO"
+		},
+		"filterDEBUG": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "DEBUG"
+		},
+		"filterNOTSET": {
+			"()": "gedcomish.configure.LevelFilter",
+			"levelname": "NOTSET"
+		}
+	},
+	"handlers": {
+		"console": {
+			"class": "logging.StreamHandler",
+			"level": "INFO",
+			"formatter": "explicit",
+			"stream": "ext://sys.stdout"
+		},
+		"filehandlerCRITICAL": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterCRITICAL"
+			],
+			"level": "CRITICAL",
+			"formatter": "explicit",
+			"filename": "level-holgerish-CRITICAL.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		},
+		"filehandlerERROR": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterERROR"
+			],
+			"level": "ERROR",
+			"formatter": "explicit",
+			"filename": "level-holgerish-ERROR.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		},
+		"filehandlerWARNING": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterWARNING"
+			],
+			"level": "WARNING",
+			"formatter": "explicit",
+			"filename": "level-holgerish-WARNING.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		},
+		"filehandlerINFO": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterINFO"
+			],
+			"level": "INFO",
+			"formatter": "explicit",
+			"filename": "level-holgerish-INFO.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		},
+		"filehandlerDEBUG": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterDEBUG"
+			],
+			"level": "DEBUG",
+			"formatter": "explicit",
+			"filename": "level-holgerish-DEBUG.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		},
+		"filehandlerNOTSET": {
+			"class": "logging.handlers.RotatingFileHandler",
+			"filters": [
+				"filterNOTSET"
+			],
+			"level": "NOTSET",
+			"formatter": "explicit",
+			"filename": "level-holgerish-NOTSET.log",
+			"maxBytes": 10485760,
+			"backupCount": 10,
+			"encoding": "utf-8"
+		}
+	},
+	"root": {
+		"level": "NOTSET",
+		"handlers": [
+			"console",
+			"filehandlerCRITICAL",
+			"filehandlerERROR",
+			"filehandlerWARNING",
+			"filehandlerINFO",
+			"filehandlerDEBUG",
+			"filehandlerNOTSET"
+		],
+		"propagate": false
+	},
+	"silence": {
+		"level": "INFO",
+		"handlers": [
+			"console"
+		],
+		"propagate": false
+	},
+	"loggers": {
+		"__main__": "cfg://root",
+		"holgerish.html": "cfg://root"
+	}
+}

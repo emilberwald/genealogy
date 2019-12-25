@@ -46,7 +46,7 @@
       ],
       "level": "CRITICAL",
       "formatter": "explicit",
-      "filename": "level-CRITICAL.log",
+      "filename": "level-gedcomish-CRITICAL.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -58,7 +58,7 @@
       ],
       "level": "ERROR",
       "formatter": "explicit",
-      "filename": "level-ERROR.log",
+      "filename": "level-gedcomish-ERROR.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -70,7 +70,7 @@
       ],
       "level": "WARNING",
       "formatter": "explicit",
-      "filename": "level-WARNING.log",
+      "filename": "level-gedcomish-WARNING.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -82,7 +82,7 @@
       ],
       "level": "INFO",
       "formatter": "explicit",
-      "filename": "level-INFO.log",
+      "filename": "level-gedcomish-INFO.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -94,7 +94,7 @@
       ],
       "level": "DEBUG",
       "formatter": "explicit",
-      "filename": "level-DEBUG.log",
+      "filename": "level-gedcomish-DEBUG.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -106,7 +106,7 @@
       ],
       "level": "NOTSET",
       "formatter": "explicit",
-      "filename": "level-NOTSET.log",
+      "filename": "level-gedcomish-NOTSET.log",
       "maxBytes": 10485760,
       "backupCount": 10,
       "encoding": "utf-8"
@@ -125,10 +125,17 @@
     ],
     "propagate": false
   },
+  "silence": {
+    "level": "INFO",
+    "handlers": [
+      "console"
+    ],
+    "propagate": false
+  },
   "loggers": {
     "__main__": "cfg://root",
-    "gedcomish.common": "cfg://root",
-    "gedcomish.gedcom555ish.primitives": "cfg://root",
-    "gedcomish.gedcom555ish.lineage_linked_gedcom_file": "cfg://root"
+    "gedcomish.common": "cfg://silence",
+    "gedcomish.gedcom555ish.primitives": "cfg://silence",
+    "gedcomish.gedcom555ish.lineage_linked_gedcom_file": "cfg://silence"
   }
 }

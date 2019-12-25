@@ -8,8 +8,5 @@ setup(
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     install_requires=requirements,
-    package_data={
-        "gedcomish": ["logging.json"],
-        "holgerish": ["logging.json"]
-    },
+    package_data={"gedcomish": ["logging.json"], "holgerish": ["logging.json"]},
 )
