@@ -1026,15 +1026,16 @@ def add_family_info(ids, sections):
                     else:
                         children = get_children(section=section, part_before=union_part_no, part_after=None)
                     if not children:
-                        raise RuntimeError("no children found")
-                    ids[(fam_id, union)] = namedtuple("union_ids", ("parents", "children"))(
-                        parents=tuple((ids[adult]) for adult in parents),
-                        children=tuple((ids[child]) for child in children),
-                    )
-                    ids[ids[(fam_id, union)]]
-                    logger.debug(
-                        f"added union id id:\n{(fam_id, union)}\n{ids[(fam_id, union)]}\n{ids[ids[(fam_id, union)]]}\nparents:{parents}\nchildren:{children}"
-                    )
+                        logging.warning(f"SKIPPING union:no children found:\n{parents}")
+                    else:
+                        ids[(fam_id, union)] = namedtuple("union_ids", ("parents", "children"))(
+                            parents=tuple((ids[adult]) for adult in parents),
+                            children=tuple((ids[child]) for child in children),
+                        )
+                        ids[ids[(fam_id, union)]]
+                        logger.debug(
+                            f"added union id id:\n{(fam_id, union)}\n{ids[(fam_id, union)]}\n{ids[ids[(fam_id, union)]]}\nparents:{parents}\nchildren:{children}"
+                        )
                 else:
                     raise RuntimeError("no parents found")
 
@@ -1070,18 +1071,21 @@ def get_gedcom_families(ids, fam_id, section):
             yield famrecord
     else:
         for union_no, union in section.family.unions:
-            union_id = ids[ids[(fam_id, union)]]
-            famrecord = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD()
-            famrecord.FAM = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM(XREF_FAM(union_id))
-            logger.debug(f"FAM\n{(fam_id, union)}\n{ids[(fam_id, union)]}\n{ids[ids[(fam_id, union)]]}")
-            add_partners(famrecord, ids[(fam_id, union)].parents)
-            for child_id in ids[(fam_id, union)].children:
-                if not isinstance(famrecord.FAM.CHILs, list):
-                    famrecord.FAM.CHILs: LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM.CHILs = list()
-                famrecord.FAM.CHILs.append(CHIL(child_id))
-                logger.debug(f"FAM.CHIL using {child_id}")
-            yield famrecord
-            # TODO: notes, details, locations, ...
+            if not hasattr(ids[(fam_id, union)], "children"):
+                logging.warning(f"SKIPPING: could not find parents in union:\n{union}")
+            else:
+                union_id = ids[ids[(fam_id, union)]]
+                famrecord = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD()
+                famrecord.FAM = LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM(XREF_FAM(union_id))
+                logger.debug(f"FAM\n{(fam_id, union)}\n{ids[(fam_id, union)]}\n{ids[ids[(fam_id, union)]]}")
+                add_partners(famrecord, ids[(fam_id, union)].parents)
+                for child_id in ids[(fam_id, union)].children:
+                    if not isinstance(famrecord.FAM.CHILs, list):
+                        famrecord.FAM.CHILs: LINEAGE_LINKED_RECORDs.FAM_GROUP_RECORD.FAM.CHILs = list()
+                    famrecord.FAM.CHILs.append(CHIL(child_id))
+                    logger.debug(f"FAM.CHIL using {child_id}")
+                yield famrecord
+                # TODO: notes, details, locations, ...
 
 
 def parsed_to_gedcom(path: pathlib.Path, sections):
