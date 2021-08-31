@@ -8,27 +8,27 @@
 	},
 	"filters": {
 		"filterCRITICAL": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "CRITICAL"
 		},
 		"filterERROR": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "ERROR"
 		},
 		"filterWARNING": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "WARNING"
 		},
 		"filterINFO": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "INFO"
 		},
 		"filterDEBUG": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "DEBUG"
 		},
 		"filterNOTSET": {
-			"()": "gedcomish.configure.LevelFilter",
+			"()": "genealogy.holgerish.configure.LevelFilter",
 			"levelname": "NOTSET"
 		}
 	},

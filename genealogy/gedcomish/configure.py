@@ -10,10 +10,10 @@ def configure(*args, **kwargs):
     import logging.config
     import json
     import logging
-    import pkg_resources
+    import importlib.resources
     import warnings
 
-    jsonConfig = pkg_resources.resource_string(__name__, "logging.json")
+    jsonConfig = importlib.resources.files(__package__) / "logging.json"
 
     def default_logging(default_level):
         logging.basicConfig(
@@ -24,10 +24,11 @@ def configure(*args, **kwargs):
 
     if jsonConfig:
         try:
-            config = json.loads(jsonConfig)
+            config = json.loads(jsonConfig.read_text())
             logging.config.dictConfig(config)
         except Exception as e:
             default_logging(default_level=logging.INFO)
+            logging.error(f"Failed to load {jsonConfig}")
             logging.error(f"{e}")
     else:
         default_logging(default_level=logging.INFO)

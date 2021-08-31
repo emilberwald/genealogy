@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "genealogy"
+version = "0.1.0"
+description = "Tools for genealogy"
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+
+[tool.poetry.dev-dependencies]
+black = "^21.8b0"
+mypy = "^0.910"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

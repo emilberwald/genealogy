@@ -11,11 +11,11 @@ from collections import OrderedDict, defaultdict, namedtuple
 from difflib import SequenceMatcher
 from typing import DefaultDict, Dict, List, Optional, Set
 
-import pkg_resources
+import importlib.metadata
 
 from .configure import configure
-from gedcomish.common import GEDCOM_LINES, NULL
-from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
+from genealogy.gedcomish.common import GEDCOM_LINES, NULL
+from genealogy.gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
     ADDRESS_STRUCTURE,
     ASSOCIATION_STRUCTURE,
     CHANGE_DATE,
@@ -46,7 +46,7 @@ from gedcomish.gedcom555ish.lineage_linked_gedcom_file import (
     NOTE_STRUCTUREs,
     TEXTs,
 )
-from gedcomish.gedcom555ish.primitives import XREF_FAM, XREF_INDI, XREF_SUBM
+from genealogy.gedcomish.gedcom555ish.primitives import XREF_FAM, XREF_INDI, XREF_SUBM
 
 configure()
 logger = logging.getLogger(__name__)
@@ -282,8 +282,8 @@ RegistryPerson = namedtuple("RegistryPerson", ("firstnames", "surnames", "birthd
 
 def refine_detail_sections(sections: list) -> DefaultDict[int, List[RegistryDetail]]:
     """
-        returns a defaultdict(list),
-        which maps family id to a list of details
+    returns a defaultdict(list),
+    which maps family id to a list of details
     """
     result = defaultdict(list)
     for text, refs in section_parts(sections, SAKREGISTER):
@@ -294,10 +294,10 @@ def refine_detail_sections(sections: list) -> DefaultDict[int, List[RegistryDeta
 
 def refine_location_sections(sections: list) -> DefaultDict[int, List[RegistryLocation]]:
     """
-        returns a defaultdict(list),
-        which maps family id to a list of tuples, each tuple element signifying a part of an address,
-        NOTE:
-        location parts may have whitespace or comma signs between them in the family sections.
+    returns a defaultdict(list),
+    which maps family id to a list of tuples, each tuple element signifying a part of an address,
+    NOTE:
+    location parts may have whitespace or comma signs between them in the family sections.
     """
     result = defaultdict(list)
     for text, refs in section_parts(sections, ORTREGISTER):
@@ -310,7 +310,7 @@ def refine_person_sections(sections: list) -> DefaultDict[int, List[RegistryPers
     result = defaultdict(list)
     for text, refs in section_parts(sections, PERSONREGISTER):
         for ref in refs:
-            if (m := PERSONREGISTRY_PERSON_REGEX.search(text)) :
+            if m := PERSONREGISTRY_PERSON_REGEX.search(text):
                 if m["SECONDNAMES"]:
                     result[int(ref)].append(
                         RegistryPerson(
@@ -351,7 +351,7 @@ def find_sections(text) -> Sections:
             location_sections.append(section)
         elif PERSONREGISTER in section:
             person_sections.append(section)
-        elif (m := FAMILY_REGEX.search(section)) :
+        elif m := FAMILY_REGEX.search(section):
             if m["ID"] in family_sections:
                 raise ValueError(f"FAMILY: duplicate id: {section}")
             elif m["ID"]:
@@ -423,7 +423,7 @@ def lookahead_match(*, part_no, parts, current, regex):
         for end in range(part_no + 1, len(parts)):
             trial_merge = trim(" ".join((current, " ".join(parts[part_no + 1 : end]))))
             remains = trim(" ".join(parts[end:]))
-            if (match := regex.match(trial_merge)) :
+            if match := regex.match(trial_merge):
                 merge = trial_merge
                 merge_match = match
                 merge_lookahead = end
@@ -481,7 +481,12 @@ def split_section(fam_id, source):
         if current:
             person = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_PERSON_REGEX)
             relation = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_RELATION_REGEX)
-            union = lookahead_match(part_no=part_no, parts=parts, current=current, regex=FAMILY_UNION_REGEX,)
+            union = lookahead_match(
+                part_no=part_no,
+                parts=parts,
+                current=current,
+                regex=FAMILY_UNION_REGEX,
+            )
             if person and not relation and not union:
                 # person entry
                 remains, value, nof_lookahead = person
@@ -577,18 +582,26 @@ def person_similarity(reg_person: RegistryPerson, fam_person, weight=2.0):
     )
     score += (
         SequenceMatcher(
-            None, v if (v := fam_person.BIRTHDAY_CORRUPT) else "", "".join(v) if (v := reg_person.birthday) else "",
+            None,
+            v if (v := fam_person.BIRTHDAY_CORRUPT) else "",
+            "".join(v) if (v := reg_person.birthday) else "",
         ).ratio()
         * weight
     )
     score += SequenceMatcher(
-        None, v if (v := fam_person.BIRTHPLACE) else "", "".join(v) if (v := reg_person.birthplace) else "",
+        None,
+        v if (v := fam_person.BIRTHPLACE) else "",
+        "".join(v) if (v := reg_person.birthplace) else "",
     ).ratio()
     score += SequenceMatcher(
-        None, v if (v := fam_person.FIRSTNAMES) else "", "".join(v) if (v := reg_person.firstnames) else "",
+        None,
+        v if (v := fam_person.FIRSTNAMES) else "",
+        "".join(v) if (v := reg_person.firstnames) else "",
     ).ratio()
     score += SequenceMatcher(
-        None, v if (v := fam_person.SECONDNAMES) else "", "".join(v) if (v := reg_person.firstnames) else "",
+        None,
+        v if (v := fam_person.SECONDNAMES) else "",
+        "".join(v) if (v := reg_person.firstnames) else "",
     ).ratio()
     score += SequenceMatcher(
         None, v if (v := fam_person.FIRSTNAMES) else "", "".join(v) if (v := reg_person.surnames) else ""
@@ -919,7 +932,8 @@ def add_family_info(ids, sections):
             persons_descending = [
                 person
                 for person in sorted(
-                    section.person, key=lambda person, fam_person=fam_person: person_similarity(person, fam_person),
+                    section.person,
+                    key=lambda person, fam_person=fam_person: person_similarity(person, fam_person),
                 )
                 if person not in persons_in_fam
             ]
@@ -1008,16 +1022,14 @@ def add_family_info(ids, sections):
 
         if section.family.unions:
             for union_no, (union_part_no, union) in enumerate(section.family.unions):
-                if (
-                    parents := get_parents(
-                        fam_id=fam_id,
-                        ids=ids,
-                        union=union,
-                        section=section,
-                        partner_similarity=partner_similarity,
-                        union_part_no=union_part_no,
-                    )
-                ) :
+                if parents := get_parents(
+                    fam_id=fam_id,
+                    ids=ids,
+                    union=union,
+                    section=section,
+                    partner_similarity=partner_similarity,
+                    union_part_no=union_part_no,
+                ):
                     validate_partners_in_union(ids=ids, partners=parents)
                     if (union_no + 1 < len(section.family.unions)) and (
                         next_union := section.family.unions[union_no + 1]
@@ -1130,7 +1142,7 @@ def parsed_to_gedcom(path: pathlib.Path, sections):
         "genealogy.gedcomish"
     )
     ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.VERS = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.VERS(
-        pkg_resources.get_distribution("genealogy").version
+        importlib.metadata.version(__package__.split(".")[0])
     )
     ex.GEDCOM_FORM_HEADER_EXTENSION.SOUR.DATA = GEDCOM_FORM_HEADER_EXTENSIONs.LINEAGE_LINKED_HEADER_EXTENSION.SOUR.DATA(
         path.parent.name + ": " + str(path.name)
